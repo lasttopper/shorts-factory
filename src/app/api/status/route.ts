@@ -5,6 +5,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { memoryPathFor, readMemory } from "@/lib/memory";
 import { getSessionUser } from "@/lib/auth";
 import { ctxForUser, ctxStatuses } from "@/lib/context";
+import { oauthAppReady } from "@/lib/youtube-oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,15 @@ export async function GET() {
       nextWindow: first.toISOString(),
       telegramConnected: !!(ctx.telegramBotToken && ctx.telegramChatId),
       youtubeConnected: !!(ctx.ytRefreshToken && ctx.uploadEnabled),
+      youtubeOAuthReady: oauthAppReady(),
+      youtubeChannel: ctx.ytChannelId
+        ? {
+            id: ctx.ytChannelId,
+            title: ctx.ytChannelTitle,
+            handle: ctx.ytChannelHandle,
+            thumbnail: ctx.ytChannelThumbnail,
+          }
+        : null,
     },
   });
 }

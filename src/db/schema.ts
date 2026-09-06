@@ -23,9 +23,16 @@ export type UserConfig = {
   sourceChannelHandle?: string;
   telegramChatId?: string;
   telegramBotToken?: string; // personal bot override; system bot is fallback
+  // ytClientId/ytClientSecret remain for backward compatibility. New accounts use
+  // the shared OAuth application plus a per-user refresh token.
   ytClientId?: string;
   ytClientSecret?: string;
   ytRefreshToken?: string;
+  ytChannelId?: string;
+  ytChannelTitle?: string;
+  ytChannelHandle?: string;
+  ytChannelThumbnail?: string;
+  ytConnectedAt?: string;
   uploadEnabled?: boolean;
   openaiApiKey?: string;
   openaiModel?: string;
@@ -39,6 +46,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("member"), // admin | member
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -13,12 +13,41 @@ Every teammate gets a private pipeline: pick an unused video from any source cha
    | Key | Purpose |
    |---|---|
    | `YOUTUBE_API_KEY` | Live scans of the source channel |
+   | `APP_URL` | Permanent public URL, e.g. `https://your-app.example.com` |
+   | `YT_CLIENT_ID` + `YT_CLIENT_SECRET` | One shared Google Web OAuth client; enables every user's **Connect with YouTube** button |
    | `TELEGRAM_BOT_TOKEN` | One shared factory bot (each user adds only their chat ID in-app) |
    | `OPENAI_API_KEY` | AI-written titles/captions instead of templates |
    | `GDRIVE_FOLDER_ID` + `GOOGLE_DRIVE_TOKEN` | Collab vault (.env + memory.md sync) |
 
    > Set keys as **env vars here**, not only via the in-app settings UI — the free plan's disk is ephemeral, so UI-saved `.env` entries reset on redeploy, while env vars persist forever. **Dedupe is safe either way**: used-video locks live in the persistent database too.
-5. Each teammate: registers → **Connections & Keys → MY CONNECTIONS** → sets their **source channel handle**, **Telegram chat ID**, and their **YouTube channel OAuth** (client ID/secret/refresh token, scope `youtube.upload`) → hits **RUN TODAY'S BATCH**.
+5. In Google Cloud, enable **YouTube Data API v3**, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `${APP_URL}/api/oauth/youtube/callback` as an exact Authorized redirect URI.
+6. Each teammate: registers → clicks **Connect with YouTube** → chooses their Google/YouTube account → approves access → returns with their channel connected automatically. They then set their **source channel handle** and **Telegram chat ID**, and hit **RUN TODAY'S BATCH**. Users never paste a client secret or refresh token.
+
+## Enable “Connect with YouTube” (administrator, one time)
+
+1. Open [Google Cloud Console](https://console.cloud.google.com), create/select a project, then enable **YouTube Data API v3**.
+2. Open **Google Auth Platform / OAuth consent screen**:
+   - Choose **External** for users outside your Workspace.
+   - Add app name, support email and developer email.
+   - While testing, add every intended Google account under **Test users**.
+3. Open **Credentials → Create credentials → OAuth client ID → Web application**.
+4. Add this exact **Authorized redirect URI** (scheme, host, and path must match):
+   ```
+   https://YOUR-PUBLIC-APP/api/oauth/youtube/callback
+   ```
+5. On your host, set these persistent environment variables:
+   ```
+   APP_URL=https://YOUR-PUBLIC-APP
+   YT_CLIENT_ID=...apps.googleusercontent.com
+   YT_CLIENT_SECRET=GOCSPX-...
+   YOUTUBE_API_KEY=AIza...   # source-channel scanning
+   AUTH_SECRET=<stable random 32+ byte value>
+   ```
+6. Redeploy. Every logged-in user now sees **Connect with YouTube** on the dashboard and Connections page. They choose a Google account, approve `youtube.upload` + `youtube.readonly`, and return automatically. The app identifies the channel and encrypts that user's refresh token in PostgreSQL.
+
+The first registered account is the **admin** and can see shared system settings. Later accounts are **members** and can only manage their own source channel, YouTube connection, Telegram destination, AI override and schedule. Users cannot access another user's runs or artifacts.
+
+> Google OAuth apps left in **Testing** are limited to configured test users, and Google may expire testing refresh tokens. For a public multi-user service, complete Google's production/verification requirements before inviting unrestricted users.
 
 ### Free-plan notes
 - The service **sleeps after ~15 min idle** — first visit takes up to ~60 s to wake.

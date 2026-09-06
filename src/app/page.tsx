@@ -98,17 +98,29 @@ export default function Dashboard() {
 
       <div className="mx-auto flex max-w-7xl flex-col gap-12 px-5 py-14">
         {needsOnboarding && (
-          <section className="card glow-volt flex flex-wrap items-center justify-between gap-4 border-[#d4ff3f]/30 px-6 py-5">
+          <section className="card glow-volt flex flex-wrap items-center justify-between gap-5 border-[#d4ff3f]/30 px-6 py-5">
             <div>
-              <p className="text-[15px] font-bold">Finish wiring your pipeline — 2 connections left</p>
+              <p className="text-[15px] font-bold">Welcome, {user.name.split(" ")[0]} — connect your publishing accounts</p>
               <p className="mono mt-1 text-[11px] tracking-[0.06em] text-[#8b93a7]">
-                {!status.config?.telegramConnected && "ADD YOUR TELEGRAM CHAT ID  •  "}
-                {!status.config?.youtubeConnected && "CONNECT YOUR YOUTUBE CHANNEL"}
+                EACH USER CONNECTS THEIR OWN YOUTUBE CHANNEL + TELEGRAM DESTINATION
               </p>
             </div>
-            <Link href="/settings" className="flex items-center gap-2 rounded-xl bg-[#d4ff3f] px-5 py-3 text-[13px] font-bold text-black transition-transform hover:translate-y-[-1px]">
-              OPEN CONNECTIONS <ArrowRight size={15} />
-            </Link>
+            <div className="flex flex-wrap gap-2.5">
+              {!status.config?.youtubeConnected && (
+                <a
+                  href={status.config?.youtubeOAuthReady ? "/api/oauth/youtube/start" : "/settings?youtube=admin_setup_required"}
+                  className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[13px] font-bold text-black transition-transform hover:-translate-y-0.5"
+                >
+                  <span className="text-[#ff0000]">▶</span>
+                  CONNECT WITH YOUTUBE
+                </a>
+              )}
+              {!status.config?.telegramConnected && (
+                <Link href="/settings#telegram" className="flex items-center gap-2 rounded-xl border border-[#39405a] px-5 py-3 text-[13px] font-bold text-[#e8eaf0] hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
+                  <Send size={14} /> CONNECT TELEGRAM <ArrowRight size={14} />
+                </Link>
+              )}
+            </div>
           </section>
         )}
 

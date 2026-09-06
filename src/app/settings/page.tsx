@@ -8,6 +8,7 @@ import {
   KeyRound, Link2, Loader2, Save, Send, Users, Video, XCircle, Sparkles,
 } from "lucide-react";
 import { usePoll } from "@/components/ui";
+import YoutubeConnectCard from "@/components/YoutubeConnectCard";
 
 type KeyDef = { key: string; label: string; group: string; secret?: boolean; placeholder?: string; help?: string; set: boolean; masked: string };
 
@@ -194,7 +195,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Telegram */}
-            <div className="border-b border-[#1e2230] px-6 py-6">
+            <div id="telegram" className="scroll-mt-24 border-b border-[#1e2230] px-6 py-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2.5 text-[15px] font-bold tracking-[0.08em]">
                   <Send size={14} className="text-[#d4ff3f]" /> TELEGRAM — WHERE REPORTS GO
@@ -226,37 +227,12 @@ export default function SettingsPage() {
               {testResults.telegram && testResults.telegram !== "loading" && <TestLine result={testResults.telegram} />}
             </div>
 
-            {/* YouTube destination */}
-            <div className="border-b border-[#1e2230] px-6 py-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2.5 text-[15px] font-bold tracking-[0.08em]">
-                  <Video size={14} className="text-[#d4ff3f]" /> YOUR YOUTUBE CHANNEL — WHERE SHORTS UPLOAD
-                </h2>
-                <button onClick={() => test("youtube_upload")} className="mono flex items-center gap-2 rounded-lg border border-[#2a3044] px-3.5 py-2 text-[11px] font-bold tracking-[0.14em] text-[#aab1c5] hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
-                  <FlaskConical size={13} /> TEST CONNECTION
-                </button>
-              </div>
-              <p className="mt-1.5 text-[12.5px] text-[#6d7690]">
-                Google Cloud → enable YouTube Data API v3 → OAuth client (Web) → get a refresh token with scope
-                <span className="mono text-[11px] text-[#8b93a7]"> youtube.upload</span> via OAuth Playground. Full steps in the setup guide.
-              </p>
-              <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <Field label="Client ID" secret value={pv("ytClientId")} onChange={spv("ytClientId")} placeholder={setFlags.ytClientId ? cfg.ytClientId : "xxx.apps.googleusercontent.com"} set={!!setFlags.ytClientId} />
-                <Field label="Client secret" secret value={pv("ytClientSecret")} onChange={spv("ytClientSecret")} placeholder={setFlags.ytClientSecret ? cfg.ytClientSecret : "GOCSPX-…"} set={!!setFlags.ytClientSecret} />
-                <Field label="Refresh token" secret value={pv("ytRefreshToken")} onChange={spv("ytRefreshToken")} placeholder={setFlags.ytRefreshToken ? cfg.ytRefreshToken : "1//0g…"} set={!!setFlags.ytRefreshToken} />
-              </div>
-              <label className="mt-4 flex cursor-pointer items-center gap-3">
-                <button
-                  onClick={() => setProfileValues((s) => ({ ...s, uploadEnabled: !((s.uploadEnabled as boolean) ?? cfg.uploadEnabled) }))}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${((profileValues.uploadEnabled as boolean) ?? cfg.uploadEnabled) ? "bg-[#d4ff3f]" : "bg-[#232839]"}`}
-                >
-                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-black transition-all ${((profileValues.uploadEnabled as boolean) ?? cfg.uploadEnabled) ? "left-[22px]" : "left-0.5"}`} />
-                </button>
-                <span className="mono text-[11px] tracking-[0.14em] text-[#aab1c5]">ENABLE REAL UPLOADS TO MY CHANNEL</span>
-              </label>
-              {testResults.youtube_upload === "loading" && <LoadingLine />}
-              {testResults.youtube_upload && testResults.youtube_upload !== "loading" && <TestLine result={testResults.youtube_upload} />}
-            </div>
+            {/* YouTube destination — real per-user Google OAuth */}
+            <YoutubeConnectCard
+              profile={profile}
+              isAdmin={me?.user?.role === "admin"}
+              onRefresh={refreshProfile}
+            />
 
             {/* Cadence */}
             <div className="px-6 py-6">
@@ -275,9 +251,12 @@ export default function SettingsPage() {
                 {saving === "profile" ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 SAVE MY CONNECTIONS
               </button>
+              {savedMsg && <span className="mono ml-4 text-[11px] font-bold tracking-[0.16em] text-emerald-400">{savedMsg}</span>}
             </div>
           </motion.section>
 
+          {me?.user?.role === "admin" && (
+            <>
           {/* ── SYSTEM / SHARED ── */}
           <div className="mono flex items-center gap-3 pt-4 text-[11px] tracking-[0.3em] text-[#576080]">
             <span className="h-px flex-1 bg-[#1e2230]" />
@@ -354,6 +333,8 @@ export default function SettingsPage() {
                 ))}
               </ul>
             </div>
+          )}
+            </>
           )}
 
           {/* Collab explainer */}

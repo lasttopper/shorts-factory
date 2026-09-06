@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (user.role !== "admin") return NextResponse.json({ error: "admin only" }, { status: 403 });
   return NextResponse.json({
     path: ENV_PATH,
     keys: ENV_KEYS.map((def) => ({
@@ -21,6 +22,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (user.role !== "admin") return NextResponse.json({ error: "admin only" }, { status: 403 });
   const body = await req.json();
   const allowed = new Set(ENV_KEYS.map((k) => k.key));
   const values: Record<string, string> = {};

@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, detail: `Live scan OK — ${vids.length} recent videos found on ${ctx.sourceHandle}` });
       }
       case "youtube_upload": {
-        if (!ctx.ytRefreshToken) return NextResponse.json({ ok: false, detail: "Your channel isn't connected — add the OAuth trio in My Connections" });
+        if (!ctx.ytRefreshToken) return NextResponse.json({ ok: false, detail: "Your channel isn't connected — click Connect with YouTube" });
         await getAccessToken({ clientId: ctx.ytClientId, clientSecret: ctx.ytClientSecret, refreshToken: ctx.ytRefreshToken });
         return NextResponse.json({ ok: true, detail: "OAuth token refresh OK — your channel is connected" });
       }

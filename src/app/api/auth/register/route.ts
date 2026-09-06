@@ -17,10 +17,12 @@ export async function POST(req: Request) {
   if (existing.length) {
     return NextResponse.json({ ok: false, error: "That email is already registered — log in instead" }, { status: 409 });
   }
+  const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin")).limit(1);
+  const role = admins.length ? "member" : "admin";
   const [u] = await db
     .insert(users)
-    .values({ name: String(name).trim(), email: cleanEmail, passwordHash: hashPassword(password) })
-    .returning({ id: users.id, name: users.name, email: users.email });
+    .values({ name: String(name).trim(), email: cleanEmail, passwordHash: hashPassword(password), role })
+    .returning({ id: users.id, name: users.name, email: users.email, role: users.role });
   const res = NextResponse.json({ ok: true, user: u });
   res.cookies.set(SESSION_COOKIE, makeSessionToken(u.id), SESSION_OPTS);
   return res;

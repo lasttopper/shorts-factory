@@ -24,6 +24,14 @@ services:
       # unlike values saved via the in-app UI on the free plan.
       - key: YOUTUBE_API_KEY
         sync: false
+      # Shared Google Web OAuth app. APP_URL must be your permanent public URL,
+      # e.g. https://shorts-factory-xxxx.onrender.com (no trailing slash).
+      - key: APP_URL
+        sync: false
+      - key: YT_CLIENT_ID
+        sync: false
+      - key: YT_CLIENT_SECRET
+        sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: OPENAI_API_KEY

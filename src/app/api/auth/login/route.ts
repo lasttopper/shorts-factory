@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (!u || !verifyPassword(password, u.passwordHash)) {
     return NextResponse.json({ ok: false, error: "Invalid email or password" }, { status: 401 });
   }
-  const res = NextResponse.json({ ok: true, user: { id: u.id, name: u.name, email: u.email } });
+  const res = NextResponse.json({ ok: true, user: { id: u.id, name: u.name, email: u.email, role: u.role } });
   res.cookies.set(SESSION_COOKIE, makeSessionToken(u.id), SESSION_OPTS);
   return res;
 }

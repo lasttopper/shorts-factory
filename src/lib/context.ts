@@ -3,6 +3,7 @@ import { userSettings, type UserConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getEnv } from "./env";
 import { memoryPathFor } from "./memory";
+import { unprotectSecret } from "./secret-crypto";
 
 export type ExecCtx = {
   userId: number;
@@ -15,6 +16,10 @@ export type ExecCtx = {
   ytClientId: string;
   ytClientSecret: string;
   ytRefreshToken: string;
+  ytChannelId: string;
+  ytChannelTitle: string;
+  ytChannelHandle: string;
+  ytChannelThumbnail: string;
   uploadEnabled: boolean;
   shortsPerRun: number;
   startHour: number;
@@ -40,22 +45,27 @@ export async function saveUserConfig(userId: number, cfg: UserConfig): Promise<v
 /** Merge a user's personal connections over the shared factory .env defaults. */
 export async function ctxForUser(userId: number): Promise<ExecCtx> {
   const cfg = userId ? await getUserConfig(userId) : {};
-  const num = (v: any, d: number) => (Number.isFinite(+v) && +v > 0 ? +v : d);
+  const positive = (v: any, d: number) => (Number.isFinite(+v) && +v > 0 ? +v : d);
+  const hour = (v: any, d: number) => (Number.isFinite(+v) && +v >= 0 && +v <= 23 ? +v : d);
   return {
     userId,
     sourceHandle: cfg.sourceChannelHandle || getEnv("SOURCE_CHANNEL_HANDLE", "@NotYourType"),
     youtubeApiKey: getEnv("YOUTUBE_API_KEY"),
-    openaiKey: cfg.openaiApiKey || getEnv("OPENAI_API_KEY"),
+    openaiKey: unprotectSecret(cfg.openaiApiKey) || getEnv("OPENAI_API_KEY"),
     openaiModel: cfg.openaiModel || getEnv("OPENAI_MODEL", "gpt-4o-mini"),
-    telegramBotToken: cfg.telegramBotToken || getEnv("TELEGRAM_BOT_TOKEN"),
+    telegramBotToken: unprotectSecret(cfg.telegramBotToken) || getEnv("TELEGRAM_BOT_TOKEN"),
     telegramChatId: cfg.telegramChatId || getEnv("TELEGRAM_CHAT_ID"),
     ytClientId: cfg.ytClientId || getEnv("YT_CLIENT_ID"),
-    ytClientSecret: cfg.ytClientSecret || getEnv("YT_CLIENT_SECRET"),
-    ytRefreshToken: cfg.ytRefreshToken || getEnv("YT_REFRESH_TOKEN"),
+    ytClientSecret: unprotectSecret(cfg.ytClientSecret) || getEnv("YT_CLIENT_SECRET"),
+    ytRefreshToken: unprotectSecret(cfg.ytRefreshToken) || getEnv("YT_REFRESH_TOKEN"),
+    ytChannelId: cfg.ytChannelId || "",
+    ytChannelTitle: cfg.ytChannelTitle || "",
+    ytChannelHandle: cfg.ytChannelHandle || "",
+    ytChannelThumbnail: cfg.ytChannelThumbnail || "",
     uploadEnabled: cfg.uploadEnabled ?? getEnv("YOUTUBE_UPLOAD_ENABLED") === "true",
-    shortsPerRun: Math.min(15, Math.max(1, num(cfg.shortsPerRun, parseInt(getEnv("SHORTS_PER_RUN", "10"), 10) || 10))),
-    startHour: num(cfg.startHour, parseInt(getEnv("SCHEDULE_START_HOUR", "9"), 10) || 9),
-    intervalMin: num(cfg.intervalMin, parseInt(getEnv("SLOT_INTERVAL_MIN", "90"), 10) || 90),
+    shortsPerRun: Math.min(15, Math.max(1, positive(cfg.shortsPerRun, parseInt(getEnv("SHORTS_PER_RUN", "10"), 10) || 10))),
+    startHour: hour(cfg.startHour, parseInt(getEnv("SCHEDULE_START_HOUR", "9"), 10) || 9),
+    intervalMin: positive(cfg.intervalMin, parseInt(getEnv("SLOT_INTERVAL_MIN", "90"), 10) || 90),
     memoryPath: memoryPathFor(userId),
     artifactTag: userId ? `u-${userId}` : "shared",
   };
@@ -76,7 +86,7 @@ export function ctxStatuses(ctx: ExecCtx): IntegrationStatus[] {
   const drive = !!(getEnv("GDRIVE_FOLDER_ID") && getEnv("GOOGLE_DRIVE_TOKEN"));
   return [
     { id: "youtube_scan", label: "YouTube scan", live: ytKey, detail: ytKey ? `Live scanning of ${ctx.sourceHandle}` : "Simulation catalog (add API key)" },
-    { id: "youtube_upload", label: "Your channel", live: ytOAuth && ctx.uploadEnabled, detail: ytOAuth && ctx.uploadEnabled ? "Connected — real uploads + auto scheduling" : "Not connected (add OAuth in My Connections)" },
+    { id: "youtube_upload", label: "Your channel", live: ytOAuth && ctx.uploadEnabled, detail: ytOAuth && ctx.uploadEnabled ? `${ctx.ytChannelTitle || "YouTube connected"} — uploads authorized` : "Not connected — click Connect with YouTube" },
     { id: "openai", label: "AI copywriter", live: openai, detail: openai ? `AI titles/captions (${ctx.openaiModel})` : "Template engine (add OpenAI key)" },
     { id: "telegram", label: "Telegram report", live: tg, detail: tg ? "Report + attachments delivered to your chat" : "Enter your chat ID in My Connections" },
     { id: "gdrive", label: "Drive collab sync", live: drive, detail: drive ? ".env + memory.md synced to team folder" : "Local only (shared vault not configured)" },
