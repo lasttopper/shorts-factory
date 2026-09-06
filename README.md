@@ -1,6 +1,27 @@
 # Shorts Factory — Multi-User Shorts Automation
 
-Every teammate gets a private pipeline: pick an unused video from any source channel (e.g. @NotYourType), cut the 10 best moments into Shorts with bottom captions, auto-write titles/descriptions/hashtags, design thumbnails, schedule 10 uploads per day on **their own** YouTube channel, and receive the full batch report (with attachments) in **their own** Telegram chat. A per-user `memory.md` guarantees no source video is ever clipped twice.
+Every teammate gets a private pipeline: pick an unused video from any source channel (e.g. @NotYourType), cut the 10 best moments into Shorts with bottom captions, auto-write titles/descriptions/hashtags, design thumbnails, schedule 10 uploads per day on **their own** YouTube channel, and receive the full batch report (with attachments) in **their own** Telegram chat. A per-user memory in PostgreSQL guarantees no source video is ever clipped twice.
+
+## Deploy free on Vercel + Neon (no card, permanent)
+
+All state lives in PostgreSQL — the app is fully serverless-compatible.
+
+1. Create a free [Neon](https://neon.com) project → copy the **pooled** connection string (`DATABASE_URL`) and **direct** string (`DATABASE_URL_UNPOOLED`).
+2. Push this repo to GitHub → [vercel.com](https://vercel.com) → **Add New Project** → import it (sign in with GitHub, no card).
+3. Add Environment Variables:
+   | Key | Value |
+   |---|---|
+   | `DATABASE_URL` | Neon **pooled** URL |
+   | `DATABASE_URL_UNPOOLED` | Neon **direct** URL |
+   | `AUTH_SECRET` | permanent random 32+ byte string (never change) |
+   | `YOUTUBE_API_KEY` | Google Cloud → YouTube Data API v3 |
+   | `TELEGRAM_BOT_TOKEN` | @BotFather |
+   | `APP_URL` | your `https://<project>.vercel.app` (set after first deploy) |
+   | `OPENAI_API_KEY` | optional AI copywriter |
+4. **Deploy**, then follow **“Enable ‘Connect with YouTube’”** below.
+5. Free daily automation: use [cron-job.org](https://cron-job.org) (free) → POST `https://<project>.vercel.app/api/pipeline/run` with header `Cookie: sf_session=<your cookie>`.
+
+> On serverless, system keys are read-only in the app (manage them as env vars). Each user's source channel, Telegram chat ID, YouTube connection, AI key and schedule still save normally — they live in the database. The whole batch pipeline runs inside one request (~15–45 s, within the 300 s function limit).
 
 ## Deploy free on Render (no VPS needed)
 

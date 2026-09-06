@@ -86,6 +86,7 @@ export const runs = pgTable("runs", {
   steps: jsonb("steps").$type<StepLog[]>().notNull().default([]),
   telegramStatus: text("telegram_status").notNull().default("pending"), // pending | sent | simulated | failed
   reportPath: text("report_path").notNull().default(""),
+  reportB64: text("report_b64").notNull().default(""),
   error: text("error").notNull().default(""),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   finishedAt: timestamp("finished_at"),
@@ -104,12 +105,20 @@ export const clips = pgTable("clips", {
   hashtags: text("hashtags").notNull().default(""),
   captions: jsonb("captions").$type<CaptionLine[]>().notNull().default([]),
   thumbnailPath: text("thumbnail_path").notNull().default(""),
+  thumbnailB64: text("thumbnail_b64").notNull().default(""),
   assPath: text("ass_path").notNull().default(""),
+  assContent: text("ass_content").notNull().default(""),
   renderCommand: text("render_command").notNull().default(""),
   publishAt: timestamp("publish_at"),
   youtubeVideoId: text("youtube_video_id").notNull().default(""),
   status: text("status").notNull().default("planned"), // planned | rendered | scheduled | simulated
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userMemories = pgTable("user_memories", {
+  userId: integer("user_id").primaryKey(),
+  content: text("content").notNull().default(""),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const settings = pgTable("settings", {

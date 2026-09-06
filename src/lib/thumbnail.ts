@@ -1,15 +1,5 @@
-import fs from "fs";
-import path from "path";
 import sharp from "sharp";
 import type { CaptionLine } from "@/db/schema";
-
-const ART_ROOT = path.join(process.cwd(), "public", "artifacts");
-
-export function artifactDir(runId: number): string {
-  const dir = path.join(ART_ROOT, `run-${runId}`);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -97,24 +87,13 @@ export function clipSvg(opts: {
 </svg>`;
 }
 
-/** Renders SVG -> high-quality JPEG thumbnail. Falls back to saving raw SVG. */
-export async function renderThumbnail(svg: string, outBase: string): Promise<{ path: string; rel: string; ext: string }> {
+/** Renders SVG -> high-quality JPEG thumbnail buffer (serverless-safe: no disk). */
+export async function renderThumbnail(svg: string): Promise<Buffer> {
   try {
-    const buf = await sharp(Buffer.from(svg), { density: 150 }).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-    const p = `${outBase}.jpg`;
-    fs.writeFileSync(p, buf);
-    return { path: p, rel: relPublic(p), ext: "jpg" };
+    return await sharp(Buffer.from(svg), { density: 150 }).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
   } catch {
-    const p = `${outBase}.svg`;
-    fs.writeFileSync(p, svg);
-    return { path: p, rel: relPublic(p), ext: "svg" };
+    return Buffer.from(svg);
   }
-}
-
-export function relPublic(abs: string): string {
-  const i = abs.indexOf(path.join("public", "artifacts"));
-  if (i === -1) return abs;
-  return abs.slice(i + "public".length).split(path.sep).join("/");
 }
 
 /** Builds an .ass subtitle file with bottom-center styling ready for ffmpeg burn-in. */

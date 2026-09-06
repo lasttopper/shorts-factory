@@ -10,6 +10,6 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "admin only" }, { status: 403 });
   const { direction } = await req.json().catch(() => ({ direction: "push" }));
-  const result = direction === "pull" ? await pullFromDrive() : await pushToDrive();
+  const result = direction === "pull" ? await pullFromDrive(user.id) : await pushToDrive(user.id);
   return NextResponse.json(result);
 }

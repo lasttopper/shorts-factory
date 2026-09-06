@@ -255,6 +255,13 @@ export default function SettingsPage() {
             </div>
           </motion.section>
 
+          {me?.user?.role === "admin" && data?.readOnly && (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-5 py-4">
+              <p className="text-[13px] font-semibold text-amber-200">Serverless host detected — system keys are managed as environment variables</p>
+              <p className="mt-1 text-[12.5px] text-[#9aa2b8]">Set them in your hosting dashboard (Vercel → Project → Settings → Environment Variables), then redeploy. Your personal connections above still save normally.</p>
+            </div>
+          )}
+
           {me?.user?.role === "admin" && (
             <>
           {/* ── SYSTEM / SHARED ── */}

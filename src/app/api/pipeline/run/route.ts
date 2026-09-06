@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // serverless: full batch executes inside this request
 
 export async function POST() {
   try {

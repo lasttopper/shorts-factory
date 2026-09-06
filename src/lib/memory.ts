@@ -1,17 +1,9 @@
-import fs from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-export const MEMORY_PATH = path.join(DATA_DIR, "memory.md");
+import { db } from "@/db";
+import { userMemories } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const USED_BEGIN = "<!-- USED:BEGIN -->";
 const USED_END = "<!-- USED:END -->";
-
-/** Per-user memory file: data/users/u-{id}/memory.md (id 0 = shared system file). */
-export function memoryPathFor(userId: number): string {
-  if (!userId) return MEMORY_PATH;
-  return path.join(DATA_DIR, "users", `u-${userId}`, "memory.md");
-}
 
 export type MemoryData = {
   content: string;
@@ -20,10 +12,10 @@ export type MemoryData = {
   runCount: number;
 };
 
-function baseFile(userId: number): string {
+function baseContent(userId: number): string {
   return `# SHORTS FACTORY — PIPELINE MEMORY ${userId ? `— USER #${userId}` : "— SHARED"}
-> Auto-managed by the pipeline. The orchestrator reads the USED list below so a source video is NEVER picked twice.
-> Collaborators can sync this file through the Google Drive vault.
+> Auto-managed by the pipeline. Stored in PostgreSQL so it survives every host.
+> The orchestrator reads the USED list below so a source video is NEVER picked twice.
 
 ## Used source videos — DO NOT REUSE
 ${USED_BEGIN}
@@ -37,24 +29,30 @@ ${USED_END}
 `;
 }
 
-export function ensureMemoryFile(memPath: string = MEMORY_PATH): void {
-  const dir = path.dirname(memPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(memPath)) {
-    const m = memPath.match(/u-(\d+)/);
-    fs.writeFileSync(memPath, baseFile(m ? parseInt(m[1], 10) : 0));
+export async function getMemoryContent(userId: number): Promise<string> {
+  const [row] = await db.select().from(userMemories).where(eq(userMemories.userId, userId));
+  if (row) return row.content;
+  const content = baseContent(userId);
+  await db.insert(userMemories).values({ userId, content }).onConflictDoNothing();
+  return content;
+}
+
+export async function setMemoryContent(userId: number, content: string): Promise<void> {
+  const [row] = await db.select().from(userMemories).where(eq(userMemories.userId, userId));
+  if (row) {
+    await db.update(userMemories).set({ content, updatedAt: new Date() }).where(eq(userMemories.userId, userId));
+  } else {
+    await db.insert(userMemories).values({ userId, content });
   }
 }
 
-export function readMemory(memPath: string = MEMORY_PATH): MemoryData {
-  ensureMemoryFile(memPath);
-  const content = fs.readFileSync(memPath, "utf8");
+export async function readMemory(userId: number): Promise<MemoryData> {
+  const content = await getMemoryContent(userId);
   const usedVideoIds: string[] = [];
   const b = content.indexOf(USED_BEGIN);
   const e = content.indexOf(USED_END);
   if (b !== -1 && e !== -1) {
-    const section = content.slice(b + USED_BEGIN.length, e);
-    for (const line of section.split("\n")) {
+    for (const line of content.slice(b + USED_BEGIN.length, e).split("\n")) {
       const m = line.match(/^\s*-\s*`?([A-Za-z0-9_-]{3,})`?\s*\|/);
       if (m) usedVideoIds.push(m[1]);
     }
@@ -77,9 +75,8 @@ export type RunMemoryEntry = {
   telegramStatus: string;
 };
 
-export function recordRunInMemory(entry: RunMemoryEntry, memPath: string = MEMORY_PATH): void {
-  ensureMemoryFile(memPath);
-  let content = fs.readFileSync(memPath, "utf8");
+export async function recordRunInMemory(entry: RunMemoryEntry, userId: number): Promise<void> {
+  let content = await getMemoryContent(userId);
   const date = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
 
   const usedLine = `- \`${entry.sourceVideoId}\` | ${entry.sourceVideoTitle} | run #${entry.runId} | ${date}`;
@@ -106,7 +103,7 @@ ${clipLines}
 `;
   content = content.replace("## Run log (newest first)\n", "## Run log (newest first)\n" + logEntry);
 
-  fs.writeFileSync(memPath, content);
+  await setMemoryContent(userId, content);
 }
 
 export function fmtTime(sec: number): string {

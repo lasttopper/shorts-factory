@@ -2,7 +2,6 @@ import { db } from "@/db";
 import { userSettings, type UserConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getEnv } from "./env";
-import { memoryPathFor } from "./memory";
 import { unprotectSecret } from "./secret-crypto";
 
 export type ExecCtx = {
@@ -24,8 +23,6 @@ export type ExecCtx = {
   shortsPerRun: number;
   startHour: number;
   intervalMin: number;
-  memoryPath: string;
-  artifactTag: string; // folder label for this user's artifacts
 };
 
 export async function getUserConfig(userId: number): Promise<UserConfig> {
@@ -66,8 +63,6 @@ export async function ctxForUser(userId: number): Promise<ExecCtx> {
     shortsPerRun: Math.min(15, Math.max(1, positive(cfg.shortsPerRun, parseInt(getEnv("SHORTS_PER_RUN", "10"), 10) || 10))),
     startHour: hour(cfg.startHour, parseInt(getEnv("SCHEDULE_START_HOUR", "9"), 10) || 9),
     intervalMin: positive(cfg.intervalMin, parseInt(getEnv("SLOT_INTERVAL_MIN", "90"), 10) || 90),
-    memoryPath: memoryPathFor(userId),
-    artifactTag: userId ? `u-${userId}` : "shared",
   };
 }
 

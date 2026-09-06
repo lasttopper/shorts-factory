@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { clips, runs, sourceVideos } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
-import { memoryPathFor, readMemory } from "@/lib/memory";
+import { readMemory } from "@/lib/memory";
 import { getSessionUser } from "@/lib/auth";
 import { ctxForUser, ctxStatuses } from "@/lib/context";
 import { oauthAppReady } from "@/lib/youtube-oauth";
@@ -16,12 +16,12 @@ export async function GET() {
     return NextResponse.json({ user: null });
   }
   const ctx = await ctxForUser(user.id);
-  const mem = readMemory(memoryPathFor(user.id));
+  const mem = await readMemory(user.id);
   const myRuns = await db.select().from(runs).where(eq(runs.userId, user.id)).orderBy(desc(runs.id)).limit(50);
   const myRunIds = myRuns.map((r) => r.id);
   const used = await db.select().from(sourceVideos).where(and(eq(sourceVideos.userId, user.id), eq(sourceVideos.status, "used")));
   const allClips = myRunIds.length
-    ? (await db.select().from(clips).limit(2000)).filter((c) => myRunIds.includes(c.runId))
+    ? (await db.select({ id: clips.id, runId: clips.runId }).from(clips).limit(2000)).filter((c) => myRunIds.includes(c.runId))
     : [];
 
   const now = new Date();

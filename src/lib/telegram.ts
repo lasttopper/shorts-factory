@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import { getEnv } from "./env";
 
 export type TelegramResult = {
@@ -10,6 +8,7 @@ export type TelegramResult = {
 };
 
 export type TgCreds = { botToken?: string; chatId?: string };
+export type Attachment = { name: string; data: Buffer; kind: "photo" | "document" };
 
 async function tgApi(method: string, form: FormData, botToken: string): Promise<any> {
   const res = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, { method: "POST", body: form });
@@ -18,44 +17,38 @@ async function tgApi(method: string, form: FormData, botToken: string): Promise<
   return data;
 }
 
-function fileForm(chatId: string, field: string, filePath: string, extra: Record<string, string>): FormData {
+function bufferForm(chatId: string, field: string, file: Attachment, extra: Record<string, string>): FormData {
   const form = new FormData();
   form.set("chat_id", chatId);
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
-  const buf = fs.readFileSync(filePath);
-  form.set(field, new Blob([buf]), path.basename(filePath));
+  form.set(field, new Blob([new Uint8Array(file.data)]), file.name);
   return form;
 }
 
-/** Sends the run report to Telegram: summary message + thumbnail photo + full .md report document. */
+/** Sends the run report to Telegram: summary + thumbnail photo + full .md report document. */
 export async function sendRunReport(opts: {
   runId: number;
   summary: string;
-  photoPath?: string;
-  reportPath: string;
+  photo?: Attachment;
+  report?: Attachment;
   creds?: TgCreds;
 }): Promise<TelegramResult> {
   const token = opts.creds?.botToken || getEnv("TELEGRAM_BOT_TOKEN");
   const chatId = opts.creds?.chatId || getEnv("TELEGRAM_CHAT_ID");
-  const preview = `[TELEGRAM ${opts.runId}]\n${opts.summary}\nAttachments: ${[opts.photoPath, opts.reportPath].filter(Boolean).map((p) => path.basename(p!)).join(", ")}`;
+  const names = [opts.photo?.name, opts.report?.name].filter(Boolean).join(", ");
+  const preview = `[TELEGRAM ${opts.runId}]\n${opts.summary}\nAttachments: ${names || "none"}`;
 
   if (!token || !chatId) {
     return { mode: "simulated", sent: [], preview };
   }
   try {
     const sent: string[] = [];
-    if (opts.photoPath && fs.existsSync(opts.photoPath)) {
-      await tgApi("sendPhoto", fileForm(chatId, "photo", opts.photoPath, {
+    if (opts.photo) {
+      await tgApi("sendPhoto", bufferForm(chatId, "photo", opts.photo, {
         caption: opts.summary.slice(0, 1000),
         parse_mode: "HTML",
       }), token);
       sent.push("photo");
-      if (fs.existsSync(opts.reportPath)) {
-        await tgApi("sendDocument", fileForm(chatId, "document", opts.reportPath, {
-          caption: `Full batch report — run #${opts.runId}`,
-        }), token);
-        sent.push("document");
-      }
     } else {
       const form = new FormData();
       form.set("chat_id", chatId);
@@ -63,12 +56,12 @@ export async function sendRunReport(opts: {
       form.set("parse_mode", "HTML");
       await tgApi("sendMessage", form, token);
       sent.push("message");
-      if (fs.existsSync(opts.reportPath)) {
-        await tgApi("sendDocument", fileForm(chatId, "document", opts.reportPath, {
-          caption: `Full batch report — run #${opts.runId}`,
-        }), token);
-        sent.push("document");
-      }
+    }
+    if (opts.report) {
+      await tgApi("sendDocument", bufferForm(chatId, "document", opts.report, {
+        caption: `Full batch report — run #${opts.runId}`,
+      }), token);
+      sent.push("document");
     }
     return { mode: "live", sent, preview };
   } catch (e: any) {

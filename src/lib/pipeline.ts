@@ -1,12 +1,10 @@
-import fs from "fs";
-import path from "path";
 import { db } from "@/db";
 import { runs, clips, sourceVideos, type StepLog, type CaptionLine } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { SIMULATED_CATALOG, type SourceVideo } from "./catalog";
 import { fetchChannelVideos } from "./youtube";
 import { generateCaptions, generateClipMeta } from "./ai";
-import { artifactDir, buildAss, clipSvg, ffmpegCommand, renderThumbnail, relPublic } from "./thumbnail";
+import { buildAss, clipSvg, ffmpegCommand, renderThumbnail } from "./thumbnail";
 import { sendRunReport } from "./telegram";
 import { envInt } from "./env";
 import { fmtTime, readMemory, recordRunInMemory } from "./memory";
@@ -84,7 +82,7 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       }
       for (const v of source) {
         const existing = await db
-          .select()
+          .select({ id: sourceVideos.id })
           .from(sourceVideos)
           .where(and(eq(sourceVideos.userId, ctx.userId), eq(sourceVideos.videoId, v.videoId)));
         if (!existing.length) {
@@ -102,17 +100,17 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       return { detail: `${source.length} videos from ${ctx.sourceHandle} (${mode === "live" ? "live channel scan" : "simulation catalog"})`, mode, result: source };
     });
 
-    // ---------- 2. SELECT (dedupe via this user's memory.md + DB) ----------
+    // ---------- 2. SELECT (dedupe via this user's memory + DB) ----------
     const source = await runStep(runId, steps, "select", async () => {
-      const mem = readMemory(ctx.memoryPath);
+      const mem = await readMemory(ctx.userId);
       const usedRows = await db
-        .select()
+        .select({ videoId: sourceVideos.videoId })
         .from(sourceVideos)
         .where(and(eq(sourceVideos.userId, ctx.userId), eq(sourceVideos.status, "used")));
       const used = new Set([...mem.usedVideoIds, ...usedRows.map((r) => r.videoId)]);
       const fresh = catalog.filter((v) => !used.has(v.videoId) && v.durationSec >= 300);
       await sleep(350);
-      if (!fresh.length) throw new Error("No unused source videos left — every catalog video is already in your memory.md");
+      if (!fresh.length) throw new Error("No unused source videos left — every catalog video is already in your memory");
       const pick = fresh[0];
       await db.update(runs).set({ sourceVideoId: pick.videoId, sourceVideoTitle: pick.title }).where(eq(runs.id, runId));
       return {
@@ -146,7 +144,6 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
     for (const p of plan) p.len = Math.min(59, p.len);
 
     // ---------- 4-5. CAPTIONS + METADATA ----------
-    const dir = artifactDir(runId);
     const channelName = ctx.sourceHandle;
     const clipRows: { id: number; idx: number; start: number; len: number; hook: string; title: string; description: string; hashtags: string; captions: CaptionLine[] }[] = [];
 
@@ -181,7 +178,8 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       return { detail: `${clipRows.length} titles, descriptions and hashtag sets written`, mode: metaMode, result: null };
     });
 
-    // ---------- 6. THUMBNAILS ----------
+    // ---------- 6. THUMBNAILS (stored in Postgres — survives any host) ----------
+    let firstThumbB64 = "";
     await runStep(runId, steps, "thumbnails", async () => {
       for (const c of clipRows) {
         const svg = clipSvg({
@@ -192,15 +190,24 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
           window: `${fmtTime(c.start)} – ${fmtTime(c.start + c.len)}`,
           channelTag: channelName.replace(/^@/, ""),
         });
-        const base = path.join(dir, `clip-${String(c.idx).padStart(2, "0")}-thumb`);
-        const rendered = await renderThumbnail(svg, base);
+        const buf = await renderThumbnail(svg);
+        const b64 = buf.toString("base64");
+        if (c.idx === 1) firstThumbB64 = b64;
         const ass = buildAss(c.captions);
-        const assName = `clip-${String(c.idx).padStart(2, "0")}.ass`;
-        fs.writeFileSync(path.join(dir, assName), ass);
-        const cmd = ffmpegCommand(source.videoId, c.start, c.len, `run-${runId}/${assName}`, `clip-${String(c.idx).padStart(2, "0")}.mp4`);
-        await db.update(clips).set({ thumbnailPath: rendered.rel, assPath: `/artifacts/run-${runId}/${assName}`, renderCommand: cmd }).where(eq(clips.id, c.id));
+        const idxPad = String(c.idx).padStart(2, "0");
+        const cmd = ffmpegCommand(source.videoId, c.start, c.len, `clip-${idxPad}.ass`, `clip-${idxPad}.mp4`);
+        await db
+          .update(clips)
+          .set({
+            thumbnailB64: b64,
+            assContent: ass,
+            thumbnailPath: `/artifacts/run-${runId}/clip-${idxPad}-thumb.jpg`,
+            assPath: `/artifacts/run-${runId}/clip-${idxPad}.ass`,
+            renderCommand: cmd,
+          })
+          .where(eq(clips.id, c.id));
       }
-      return { detail: `${clipRows.length} 1280×720 thumbnails + .ass caption files saved to /artifacts/run-${runId}`, mode: "live", result: null };
+      return { detail: `${clipRows.length} 1280×720 thumbnails + caption files stored in the database`, mode: "live", result: null };
     });
 
     // ---------- 7. RENDER ----------
@@ -250,25 +257,23 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
     await runStep(runId, steps, "telegram", async () => {
       const statusList = ctxStatuses(ctx);
       const report = buildReport(runId, source, ctx, clipRows.sort((a, b) => a.idx - b.idx), slots, statusList.map((s) => `${s.live ? "LIVE" : "SIM "} ${s.label}`).join("  •  "));
-      const reportPath = path.join(dir, `run-${runId}-report.md`);
-      fs.writeFileSync(reportPath, report);
-      reportRel = relPublic(reportPath);
+      const reportB64 = Buffer.from(report, "utf8").toString("base64");
+      reportRel = `/artifacts/run-${runId}/run-${runId}-report.md`;
 
       const summary =
         `<b>SHORTS FACTORY — RUN #${runId} COMPLETE</b>\n` +
         `Source: <i>${source.title}</i> (${ctx.sourceHandle})\n` +
         `${clipRows.length} shorts scheduled: ${slots[0].toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} every ${ctx.intervalMin} min\n` +
-        `Titles, captions (bottom), thumbnails attached. memory.md updated.`;
-      const firstThumb = path.join(dir, "clip-01-thumb.jpg");
+        `Titles, captions (bottom), thumbnails attached. memory locked in the database.`;
       const tg = await sendRunReport({
         runId,
         summary,
-        photoPath: fs.existsSync(firstThumb) ? firstThumb : undefined,
-        reportPath,
+        photo: firstThumbB64 ? { name: `run-${runId}-clip-01.jpg`, data: Buffer.from(firstThumbB64, "base64"), kind: "photo" } : undefined,
+        report: { name: `run-${runId}-report.md`, data: Buffer.from(report, "utf8"), kind: "document" },
         creds: { botToken: ctx.telegramBotToken, chatId: ctx.telegramChatId },
       });
       telegramStatus = tg.error ? "failed" : tg.mode === "live" ? "sent" : "simulated";
-      await db.update(runs).set({ telegramStatus, reportPath: reportRel }).where(eq(runs.id, runId));
+      await db.update(runs).set({ telegramStatus, reportPath: reportRel, reportB64 }).where(eq(runs.id, runId));
       return {
         detail: tg.error ? `Failed: ${tg.error}` : tg.mode === "live" ? `Sent to your Telegram (${tg.sent.join(" + ")})` : "Simulated — add your chat ID in My Connections to receive it",
         mode: tg.mode,
@@ -279,7 +284,7 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
     // ---------- 10. MEMORY ----------
     await runStep(runId, steps, "memory", async () => {
       const fresh = await db.select().from(clips).where(eq(clips.runId, runId));
-      recordRunInMemory(
+      await recordRunInMemory(
         {
           runId,
           mode: runModeFor(ctx),
@@ -297,13 +302,13 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
               youtubeVideoId: c.youtubeVideoId,
             })),
         },
-        ctx.memoryPath
+        ctx.userId
       );
       await db
         .update(sourceVideos)
         .set({ status: "used", usedInRunId: runId })
         .where(and(eq(sourceVideos.userId, ctx.userId), eq(sourceVideos.videoId, source.videoId)));
-      return { detail: `your memory.md updated — \`${source.videoId}\` locked, never reused`, mode: "live", result: null };
+      return { detail: `your memory updated in Postgres — \`${source.videoId}\` locked, never reused`, mode: "live", result: null };
     });
 
     await db
@@ -336,7 +341,7 @@ function buildReport(
     .map(
       (c) => `### Clip ${String(c.idx).padStart(2, "0")} — ${c.title}
 - Window: ${fmtTime(c.start)}–${fmtTime(c.start + c.len)} of source
-- Hook caption: "${c.hook}" (bottom-anchored, .ass attached)
+- Hook caption: "${c.hook}" (bottom-anchored)
 - Scheduled: ${slots[c.idx - 1].toISOString()}
 - Description: ${c.description.replace(/\n/g, " ")}
 - Hashtags: ${c.hashtags}
@@ -365,14 +370,21 @@ ${rows}
 ## Clip details
 ${details}
 
-_Captions are bottom-burned via the attached .ass files. Next run auto-skips this source via memory.md._
+_Captions are bottom-burned via the .ass files. Next run auto-skips this source via the database memory._
 `;
 }
 
-/** Fires the pipeline asynchronously for one user and returns the run id immediately. */
+/** Fires the pipeline for one user. On serverless (Vercel) it awaits the whole run. */
 export async function startPipeline(userId: number): Promise<number> {
   const ctx = await ctxForUser(userId);
   const [r] = await db.insert(runs).values({ status: "running", userId }).returning({ id: runs.id });
-  executeRun(r.id, ctx).catch(() => {});
+  if (process.env.VERCEL) {
+    // Serverless: there is no background process, so the run executes inside
+    // this request. Typical run: 15-45s (within a 300s function budget).
+    await executeRun(r.id, ctx).catch(() => {});
+  } else {
+    // VPS/persistent host: fire-and-forget continues after the response.
+    executeRun(r.id, ctx).catch(() => {});
+  }
   return r.id;
 }
