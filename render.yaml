@@ -1,0 +1,41 @@
+# Render Blueprint — one-click free deploy of Shorts Factory
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: shorts-factory
+    runtime: node
+    plan: free
+    # Build: install deps and compile Next.js.
+    buildCommand: npm install && npm run build
+    # Start: make sure tables exist, then serve (next start reads Render's PORT).
+    startCommand: npx drizzle-kit push --force && npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shorts-factory-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      # Optional shared keys — fill these later in the Render dashboard
+      # (Environment tab). Setting them here persists across restarts,
+      # unlike values saved via the in-app UI on the free plan.
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GDRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_DRIVE_TOKEN
+        sync: false
+
+databases:
+  - name: shorts-factory-db
+    plan: free
+    databaseName: shorts_factory
+    user: shorts_factory
+    postgresMajorVersion: "16"
