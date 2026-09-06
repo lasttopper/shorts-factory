@@ -8,7 +8,8 @@ Every teammate gets a private pipeline: pick an unused video from any source cha
 
 1. Push this repo to GitHub (public or private).
 2. Go to **render.com → New → Blueprint** and select the repo — `render.yaml` provisions a **free web service + free PostgreSQL** automatically.
-3. When deploy finishes, open your `https://<name>.onrender.com` URL and **create your account**.
+3. For Neon or another external PostgreSQL provider, set `DATABASE_URL` to its **pooled** URL and `DATABASE_URL_UNPOOLED` to its **direct** URL. Drizzle uses the direct URL for schema setup; the app uses the pooler at runtime.
+4. When deploy finishes, open your public URL and **create your account**.
 4. In Render → your service → **Environment**, add optional live-integration keys:
    | Key | Purpose |
    |---|---|
