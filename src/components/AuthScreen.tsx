@@ -6,7 +6,7 @@ import { Clapperboard, Loader2, LogIn, Send, UserPlus, Video } from "lucide-reac
 
 const YTIcon = Video;
 
-export default function AuthScreen({ onAuth }: { onAuth: () => void }) {
+export default function AuthScreen({ onAuth }: { onAuth?: () => void }) {
   const [tab, setTab] = useState<"login" | "register">("register");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [busy, setBusy] = useState(false);
@@ -21,12 +21,19 @@ export default function AuthScreen({ onAuth }: { onAuth: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
       if (!data.ok) {
         setError(data.error ?? "Something went wrong");
-        if (tab === "register" && res.status === 409) setTab("login");
+        if (tab === "register" && res.status === 409) {
+          setTab("login");
+        }
       } else {
-        onAuth();
+        // Complete clean navigation so browser receives session cookie
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        } else if (onAuth) {
+          onAuth();
+        }
       }
     } catch (e: any) {
       setError(e.message ?? "Network error");
@@ -56,13 +63,13 @@ export default function AuthScreen({ onAuth }: { onAuth: () => void }) {
           </h1>
           <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[#9aa2b8]">
             Every account gets a private pipeline: pick any source channel (like Not Your Type), connect your own YouTube for
-            uploads, and your own Telegram for daily reports. memory.md keeps your history — never the same video twice.
+            uploads, and your own Telegram for daily reports. Memory in PostgreSQL keeps your history — never the same video twice.
           </p>
           <div className="mt-8 flex flex-col gap-3">
             {[
               { icon: YTIcon, text: "Connect YOUR channel — 10 shorts auto-scheduled daily" },
               { icon: Send, text: "Your Telegram chat ID — batch reports with attachments" },
-              { icon: Video, text: "Any source channel — per-user memory.md dedupe" },
+              { icon: Video, text: "Any source channel — database memory dedupe" },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#232839] bg-[#10131c] text-[#d4ff3f]">
@@ -136,7 +143,7 @@ export default function AuthScreen({ onAuth }: { onAuth: () => void }) {
             </button>
 
             <p className="mono text-center text-[10px] leading-relaxed tracking-[0.08em] text-[#576080]">
-              WORKS INSTANTLY IN SIMULATION — CONNECT YOUR CHANNEL + TELEGRAM LATER IN SETTINGS
+              CONNECT YOUR CHANNEL + TELEGRAM INSIDE AFTER SIGN IN
             </p>
           </div>
         </motion.div>

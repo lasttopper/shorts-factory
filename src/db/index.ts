@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { ensureDatabaseSchema } from "./bootstrap";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -12,7 +13,6 @@ const globalForDb = globalThis as typeof globalThis & {
 };
 
 // Cloud Postgres providers (Neon, Supabase) require SSL. Local Postgres does not.
-// Enable via DB_SSL=true or when the URL already carries sslmode=require.
 const useSsl =
   process.env.DB_SSL === "true" || /sslmode=(require|verify-ca|verify-full)/.test(databaseUrl);
 
@@ -26,5 +26,8 @@ export const pool =
 if (process.env.NODE_ENV !== "production") {
   globalForDb.__arenaNextJsPostgresqlPool = pool;
 }
+
+// Automatically create missing tables if deploying on a fresh database
+ensureDatabaseSchema(pool).catch(() => {});
 
 export const db = drizzle(pool);
