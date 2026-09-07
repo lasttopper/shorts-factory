@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Play, Scissors, Captions, Type, Image, CalendarClock, Send, Database, HardDrive } from "lucide-react";
+import { ArrowRight, Play, Scissors, Captions, Type, Image, CalendarClock, Send, Database, Loader2, AlertCircle } from "lucide-react";
 
 const CHAIN = [
   { icon: Play, label: "PICK UNUSED VIDEO" },
@@ -11,10 +11,26 @@ const CHAIN = [
   { icon: Image, label: "THUMBNAILS" },
   { icon: CalendarClock, label: "SCHEDULE 10 / DAY" },
   { icon: Send, label: "TELEGRAM REPORT" },
-  { icon: Database, label: "MEMORY.MD LOGGED" },
+  { icon: Database, label: "MEMORY LOGGED" },
 ];
 
-export default function Hero({ onRun, running, nextWindow, channel }: { onRun: () => void; running: boolean; nextWindow: string; channel: string }) {
+export default function Hero({
+  onRun,
+  running,
+  booting,
+  nextWindow,
+  channel,
+  error,
+}: {
+  onRun: () => void;
+  running: boolean;
+  booting: boolean;
+  nextWindow: string;
+  channel: string;
+  error?: string | null;
+}) {
+  const isBusy = running || booting;
+
   return (
     <section className="relative overflow-hidden pt-28">
       <div className="pointer-events-none absolute -top-40 right-[-10%] h-[560px] w-[560px] rounded-full bg-[#d4ff3f]/10 blur-[140px]" />
@@ -26,7 +42,7 @@ export default function Hero({ onRun, running, nextWindow, channel }: { onRun: (
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
           <div className="mono mb-6 inline-flex items-center gap-2 rounded-full border border-[#2a3044] bg-[#101218] px-4 py-2 text-[11px] tracking-[0.3em] text-[#8b93a7]">
             <span className="blink h-2 w-2 rounded-full bg-[#d4ff3f]" />
-            SOURCE: {channel.toUpperCase()} — AUTO-DEDUPE VIA MEMORY.MD
+            SOURCE: {channel.toUpperCase()} — AUTO-DEDUPE VIA POSTGRES MEMORY
           </div>
         </motion.div>
 
@@ -51,24 +67,49 @@ export default function Hero({ onRun, running, nextWindow, channel }: { onRun: (
           with attachments to Telegram.
         </motion.p>
 
-        <motion.div className="mt-10 flex flex-wrap items-center gap-4" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+        <motion.div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
           <button
+            type="button"
             onClick={onRun}
-            disabled={running}
-            className={`group flex items-center gap-3 rounded-xl px-7 py-4 text-[15px] font-bold tracking-wide transition-all ${
-              running
-                ? "cursor-wait bg-[#1c2130] text-[#8b93a7]"
+            disabled={isBusy}
+            className={`group flex items-center justify-center gap-3 rounded-xl px-8 py-4 text-[15px] font-bold tracking-wide transition-all ${
+              isBusy
+                ? "cursor-wait bg-[#1c2130] text-[#d4ff3f]"
                 : "pulse-ring glow-volt bg-[#d4ff3f] text-black hover:translate-y-[-2px]"
             }`}
           >
-            {running ? "PIPELINE RUNNING…" : "RUN TODAY'S BATCH"}
-            <ArrowRight size={18} className={running ? "" : "transition-transform group-hover:translate-x-1"} />
+            {isBusy ? (
+              <>
+                <Loader2 size={18} className="animate-spin text-[#d4ff3f]" />
+                <span>{booting ? "LAUNCHING RUN…" : "PIPELINE RUNNING…"}</span>
+              </>
+            ) : (
+              <>
+                <span>RUN TODAY&apos;S BATCH</span>
+                <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </button>
+
           <div className="mono text-[11px] tracking-[0.18em] text-[#8b93a7]">
-            NEXT WINDOW<br />
+            NEXT SCHEDULE WINDOW<br />
             <span className="text-[13px] font-bold text-[#e8eaf0]">{nextWindow}</span>
           </div>
         </motion.div>
+
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 flex max-w-xl items-start gap-2.5 rounded-xl border border-[#ff4d4d]/50 bg-[#ff4d4d]/10 px-4 py-3 text-[12.5px] text-[#ff9d9d]"
+          >
+            <AlertCircle size={16} className="mt-0.5 shrink-0 text-[#ff4d4d]" />
+            <div>
+              <p className="font-bold">Failed to launch batch:</p>
+              <p className="mono mt-0.5 text-[11px] text-[#ffb5b5]">{error}</p>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <div className="relative border-y border-[#1e2230] bg-[#0c0e13] py-3.5">

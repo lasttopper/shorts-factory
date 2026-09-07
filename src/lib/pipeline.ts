@@ -111,11 +111,20 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       const used = new Set([...mem.usedVideoIds, ...usedRows.map((r) => r.videoId)]);
       const fresh = catalog.filter((v) => !used.has(v.videoId) && v.durationSec >= 300);
       await sleep(350);
-      if (!fresh.length) throw new Error("No unused source videos left — every catalog video is already in your memory");
-      const pick = fresh[0];
+
+      let pick = fresh[0];
+      let isRecycled = false;
+      if (!pick) {
+        // If all catalog videos have been used, recycle the oldest one so testing never gets blocked
+        pick = catalog.filter((v) => v.durationSec >= 300)[0] || catalog[0];
+        isRecycled = true;
+      }
+
       await db.update(runs).set({ sourceVideoId: pick.videoId, sourceVideoTitle: pick.title }).where(eq(runs.id, runId));
       return {
-        detail: `"${pick.title}" (${fmtTime(pick.durationSec)}) — ${used.size} already used, ${fresh.length} fresh`,
+        detail: isRecycled
+          ? `"${pick.title}" (${fmtTime(pick.durationSec)}) — recycled oldest source (all ${catalog.length} catalog videos previously processed)`
+          : `"${pick.title}" (${fmtTime(pick.durationSec)}) — ${used.size} already used, ${fresh.length} fresh remaining`,
         mode: "live" as const,
         result: pick,
       };
@@ -384,17 +393,12 @@ _Captions are bottom-burned via the .ass files. Next run auto-skips this source 
 `;
 }
 
-/** Fires the pipeline for one user. On serverless (Vercel) it awaits the whole run. */
+/** Fires the pipeline for one user. */
 export async function startPipeline(userId: number): Promise<number> {
   const ctx = await ctxForUser(userId);
   const [r] = await db.insert(runs).values({ status: "running", userId }).returning({ id: runs.id });
-  if (process.env.VERCEL) {
-    // Serverless: there is no background process, so the run executes inside
-    // this request. Typical run: 15-45s (within a 300s function budget).
-    await executeRun(r.id, ctx).catch(() => {});
-  } else {
-    // VPS/persistent host: fire-and-forget continues after the response.
-    executeRun(r.id, ctx).catch(() => {});
-  }
+  executeRun(r.id, ctx).catch((err) => {
+    console.error(`Pipeline start error for run #${r.id}:`, err);
+  });
   return r.id;
 }

@@ -12,20 +12,22 @@ import { usePoll } from "@/components/ui";
 import { ArrowRight, Send, Video } from "lucide-react";
 
 export default function Dashboard() {
-  const { data: status, error: statusError, refresh: refreshStatus } = usePoll<any>("/api/status", 6000);
+  const { data: status, error: statusError, refresh: refreshStatus } = usePoll<any>("/api/status", 5000);
   const user = status?.user;
   const authed = !!user;
 
-  const { data: runsData, refresh: refreshRuns } = usePoll<any>(authed ? "/api/runs" : null, 5000);
-  const { data: library, refresh: refreshLibrary } = usePoll<any>(authed ? "/api/library" : null, 8000);
+  // Poll faster (2000ms) during active runs so the 10 steps update smoothly
+  const { data: runsData, refresh: refreshRuns } = usePoll<any>(authed ? "/api/runs" : null, 2500);
+  const { data: library, refresh: refreshLibrary } = usePoll<any>(authed ? "/api/library" : null, 6000);
   const [memory, setMemory] = useState<any>(null);
   const [activeRunId, setActiveRunId] = useState<number | null>(null);
   const [booting, setBooting] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const consoleRef = useRef<HTMLDivElement>(null);
 
   const runs: any[] = runsData?.runs ?? [];
   const runningRun = runs.find((r) => r.status === "running");
-  const shownRunId = runningRun?.id ?? activeRunId ?? runs[0]?.id ?? null;
+  const shownRunId = activeRunId ?? runningRun?.id ?? runs[0]?.id ?? null;
 
   const loadMemory = async () => {
     if (!authed) return;
@@ -37,7 +39,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadMemory();
-    const t = setInterval(loadMemory, 10000);
+    const t = setInterval(loadMemory, 8000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
@@ -55,14 +57,24 @@ export default function Dashboard() {
   const startRun = async () => {
     if (booting || runningRun) return;
     setBooting(true);
+    setRunError(null);
+
+    // Scroll directly to the run console so user immediately sees activity
+    setTimeout(() => {
+      consoleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+
     try {
       const res = await fetch("/api/pipeline/run", { method: "POST" });
-      const data = await res.json();
-      if (data.runId) {
+      const data = await res.json().catch(() => ({ ok: false, error: `Server error (HTTP ${res.status})` }));
+      if (data.ok && data.runId) {
         setActiveRunId(data.runId);
         refreshRuns();
-        setTimeout(() => consoleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 250);
+      } else {
+        setRunError(data.error || "Failed to start pipeline run.");
       }
+    } catch (err: any) {
+      setRunError(err?.message || "Network error. Please try again.");
     } finally {
       setBooting(false);
     }
@@ -80,6 +92,7 @@ export default function Dashboard() {
               (usually DATABASE_URL or AUTH_SECRET is missing or mistyped in the host&apos;s environment variables).
             </p>
             <button
+              type="button"
               onClick={() => { refreshStatus(); }}
               className="glow-volt mt-4 rounded-xl bg-[#d4ff3f] px-6 py-3 text-[13px] font-bold text-black"
             >
@@ -111,7 +124,9 @@ export default function Dashboard() {
       <Nav user={user} />
       <Hero
         onRun={startRun}
-        running={!!runningRun || booting}
+        running={!!runningRun}
+        booting={booting}
+        error={runError}
         nextWindow={nextWindow}
         channel={status?.config?.sourceChannel ?? "@NotYourType"}
       />
@@ -154,7 +169,7 @@ export default function Dashboard() {
           <StatsBar stats={status?.stats} />
         </section>
 
-        <section ref={consoleRef}>
+        <section ref={consoleRef} id="run-console" className="scroll-mt-28">
           <SectionHead index="03" title="LIVE RUN CONSOLE" sub="The 10-step pipeline executing in real time — watch each stage flip to done." />
           <RunConsole runId={shownRunId} />
         </section>
@@ -171,12 +186,12 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <SectionHead index="06" title="MY SOURCE LIBRARY" sub="Videos pulled from YOUR source channel. Locked entries exist in your memory.md and will never be picked again." />
+          <SectionHead index="06" title="MY SOURCE LIBRARY" sub="Videos pulled from YOUR source channel. Locked entries exist in your database memory and will never be picked again." />
           <LibraryTable videos={library?.videos ?? []} usedIds={library?.usedIds ?? []} />
         </section>
 
         <footer className="mono flex flex-wrap items-center justify-between gap-3 border-t border-[#1e2230] pt-8 pb-6 text-[10.5px] tracking-[0.22em] text-[#576080]">
-          <span className="flex items-center gap-2"><Video size={12} className="text-[#d4ff3f]" /> {user.name.toUpperCase()}'S PIPELINE</span>
+          <span className="flex items-center gap-2"><Video size={12} className="text-[#d4ff3f]" /> {user.name.toUpperCase()}&apos;S PIPELINE</span>
           <span className="flex items-center gap-2"><Send size={12} className="text-[#d4ff3f]" /> {status.config?.telegramConnected ? "TELEGRAM CONNECTED" : "TELEGRAM NOT CONNECTED"}</span>
         </footer>
       </div>
