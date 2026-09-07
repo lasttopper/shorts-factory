@@ -5,10 +5,6 @@ import { sql } from "drizzle-orm";
 import { getEnv } from "@/lib/env";
 import { startPipeline } from "@/lib/pipeline";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const maxDuration = 300; // Vercel Hobby ceiling — several user batches fit comfortably
-
 function authorized(req: Request): boolean {
   const secret = getEnv("CRON_SECRET");
   if (!secret) return false;
@@ -36,35 +32,31 @@ async function handle(req: Request) {
     .from(userSettings)
     .where(sql`(${userSettings.config} ->> 'autoRunEnabled') = 'true'`);
 
-  const started = Date.now();
-  const BUDGET_MS = 240_000; // leave headroom under the function limit
-  const ran: number[] = [];
+  const now = Date.now();
+  const queued: number[] = [];
   const skipped: { userId: number; reason: string }[] = [];
-  const errors: { userId: number; error: string }[] = [];
 
   for (const row of rows) {
-    if (Date.now() - started > BUDGET_MS) {
-      skipped.push({ userId: row.userId, reason: "time budget reached — will run on the next invocation" });
-      continue;
-    }
     const last = row.config?.lastAutoRunAt ? new Date(row.config.lastAutoRunAt).getTime() : 0;
-    if (Date.now() - last < 20 * 60 * 60 * 1000) {
+    if (now - last < 20 * 60 * 60 * 1000) {
       skipped.push({ userId: row.userId, reason: "already ran in the last 20 hours" });
       continue;
     }
     try {
+      // startPipeline is fire-and-forget: each user's batch keeps executing
+      // in the background after this endpoint responds.
       await startPipeline(row.userId);
-      ran.push(row.userId);
+      queued.push(row.userId);
       await db
         .update(userSettings)
         .set({ config: { ...row.config, lastAutoRunAt: new Date().toISOString() } })
         .where(sql`${userSettings.userId} = ${row.userId}`);
     } catch (e: any) {
-      errors.push({ userId: row.userId, error: e?.message ?? "run failed" });
+      skipped.push({ userId: row.userId, reason: e?.message ?? "start failed" });
     }
   }
 
-  return NextResponse.json({ ok: errors.length === 0, ran, skipped, errors, durationMs: Date.now() - started });
+  return NextResponse.json({ ok: true, queued, skipped, durationMs: Date.now() - now });
 }
 
 export async function GET(req: Request) {

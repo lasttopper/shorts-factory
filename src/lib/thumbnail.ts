@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import type { CaptionLine } from "@/db/schema";
 
 function esc(s: string): string {
@@ -87,12 +86,19 @@ export function clipSvg(opts: {
 </svg>`;
 }
 
-/** Renders SVG -> high-quality JPEG thumbnail buffer (serverless-safe: no disk). */
+/**
+ * Renders SVG -> high-quality JPEG thumbnail buffer.
+ * sharp is lazy-loaded so a native-module issue can never break route imports —
+ * a failure simply degrades to serving the raw SVG text instead.
+ */
 export async function renderThumbnail(svg: string): Promise<Buffer> {
   try {
+    const sharpMod: any = await (Function('return import("sharp")')() as Promise<any>);
+    const sharp = sharpMod.default ?? sharpMod;
     return await sharp(Buffer.from(svg), { density: 150 }).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-  } catch {
-    return Buffer.from(svg);
+  } catch (err) {
+    console.error("sharp render fallback:", (err as Error)?.message);
+    return Buffer.from(svg, "utf8");
   }
 }
 

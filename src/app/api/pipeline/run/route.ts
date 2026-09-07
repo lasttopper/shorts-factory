@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { executeRun } from "@/lib/pipeline";
 import { getSessionUser } from "@/lib/auth";
 import { ctxForUser } from "@/lib/context";
@@ -7,7 +7,20 @@ import { runs } from "@/db/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+
+/** Quick liveness probe so deployments can be verified without auth: curl /api/pipeline/run */
+export async function GET() {
+  return NextResponse.json({ ok: true, service: "pipeline", note: "POST (authenticated) starts a run" });
+}
+
+async function getAfter(): Promise<((fn: () => Promise<void>) => void) | null> {
+  try {
+    const mod: any = await (Function('return import("next/server")')() as Promise<any>);
+    return typeof mod.after === "function" ? mod.after : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST() {
   try {
@@ -18,20 +31,34 @@ export async function POST() {
 
     const ctx = await ctxForUser(user.id);
     const [r] = await db.insert(runs).values({ status: "running", userId: user.id }).returning({ id: runs.id });
+    console.error(`[pipeline] run #${r.id} inserted for user ${user.id} — starting background execution`);
 
-    // In Next.js 15+, after() runs in the background on serverless and persistent hosts alike,
-    // allowing the API to return the run ID to the client immediately (< 100ms).
-    after(async () => {
+    const work = async () => {
       try {
         await executeRun(r.id, ctx);
+        console.error(`[pipeline] run #${r.id} finished`);
       } catch (err: any) {
-        console.error(`Background execution failed for run #${r.id}:`, err?.message || err);
+        console.error(`[pipeline] run #${r.id} background failure:`, err?.stack || err?.message || err);
       }
-    });
+    };
+
+    // Prefer Next's official background hook; fall back to a plain detached
+    // promise (fine on persistent hosts) if it is unavailable on this platform.
+    const afterFn = await getAfter();
+    try {
+      if (afterFn) afterFn(work);
+      else work().catch(() => {});
+    } catch (e: any) {
+      console.error("[pipeline] after() unavailable, using detached promise:", e?.message);
+      work().catch(() => {});
+    }
 
     return NextResponse.json({ ok: true, runId: r.id });
   } catch (e: any) {
-    console.error("Pipeline start error:", e);
-    return NextResponse.json({ ok: false, error: e?.message || "Failed to start pipeline" }, { status: 500 });
+    console.error("/api/pipeline/run failed:", e?.stack || e);
+    return NextResponse.json(
+      { ok: false, error: `start failed: ${e?.message?.slice(0, 220) ?? "unknown"}`, runId: null },
+      { status: 500 }
+    );
   }
 }
