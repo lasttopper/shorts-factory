@@ -17,7 +17,8 @@ const GROUP_META: Record<string, { title: string; integration: string | null; bl
   "YouTube": { title: "SYSTEM — YOUTUBE DATA API", integration: "youtube_scan", blurb: "One shared Data API key powers live channel scans for every user." },
   "AI": { title: "SYSTEM — AI FALLBACK", integration: "openai", blurb: "Shared OpenAI key. Your personal key (My Connections) takes priority." },
   "Telegram": { title: "SYSTEM — FACTORY BOT", integration: "telegram", blurb: "One bot (@BotFather) delivers reports. Each user only adds their chat ID above." },
-  "Google Drive": { title: "COLLAB VAULT", integration: "gdrive", blurb: ".env and memory.md live in a shared folder so the whole team runs with identical system credentials and state." },
+  "GitHub": { title: "STATE ON GITHUB", integration: "github", blurb: "memory.md and batch reports are committed to your repo — collaborators read/restore state straight from GitHub. No Drive needed." },
+  "Automation": { title: "DAILY AUTO-RUN", integration: "cron", blurb: "Set CRON_SECRET, then any scheduler (Vercel Cron or cron-job.org) can trigger the pipeline daily for everyone who enabled auto-run." },
 };
 
 function Field({ label, value, onChange, placeholder, secret, help, set: isSet }: {
@@ -120,7 +121,7 @@ export default function SettingsPage() {
     setSyncing(direction);
     setSyncResult(null);
     try {
-      const res = await fetch("/api/gdrive/sync", {
+      const res = await fetch("/api/github/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ direction }),
@@ -237,12 +238,31 @@ export default function SettingsPage() {
             {/* Cadence */}
             <div className="px-6 py-6">
               <h2 className="flex items-center gap-2.5 text-[15px] font-bold tracking-[0.08em]">
-                <CalendarClock size={14} className="text-[#d4ff3f]" /> DAILY CADENCE
+                <CalendarClock size={14} className="text-[#d4ff3f]" /> DAILY CADENCE + AUTO-RUN
               </h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <Field label="Shorts per run" value={pv("shortsPerRun")} onChange={spv("shortsPerRun")} placeholder={String(cfg.shortsPerRun ?? 10)} />
                 <Field label="First slot hour (0-23)" value={pv("startHour")} onChange={spv("startHour")} placeholder={String(cfg.startHour ?? 9)} />
                 <Field label="Minutes between slots" value={pv("intervalMin")} onChange={spv("intervalMin")} placeholder={String(cfg.intervalMin ?? 90)} />
+              </div>
+              <div className="mt-5 rounded-xl border border-[#2a3044] bg-[#0b0d13] px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[14px] font-bold">AUTO-RUN MY PIPELINE DAILY</p>
+                    <p className="mono mt-1 text-[10.5px] leading-relaxed text-[#6d7690]">
+                      when the cron endpoint fires, your batch runs automatically — no button needed
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setProfileValues((s) => ({ ...s, autoRunEnabled: !((s.autoRunEnabled as boolean) ?? cfg.autoRunEnabled) }))}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${((profileValues.autoRunEnabled as boolean) ?? cfg.autoRunEnabled) ? "bg-[#d4ff3f]" : "bg-[#232839]"}`}
+                  >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-black transition-all ${((profileValues.autoRunEnabled as boolean) ?? cfg.autoRunEnabled) ? "left-[22px]" : "left-0.5"}`} />
+                  </button>
+                </div>
+                <p className="mono mt-3 text-[10px] leading-relaxed text-[#576080]">
+                  requires CRON_SECRET on the host · one batch per 20 hours max · runs your schedule, reports to your Telegram, commits state to GitHub
+                </p>
               </div>
             </div>
 
@@ -318,11 +338,11 @@ export default function SettingsPage() {
             </button>
             <button onClick={() => sync("push")} disabled={!!syncing} className="flex items-center gap-2.5 rounded-xl border border-[#2a3044] px-5 py-3.5 text-[13px] font-bold text-[#c4cadb] transition-colors hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
               {syncing === "push" ? <Loader2 size={15} className="animate-spin" /> : <CloudUpload size={15} />}
-              PUSH .ENV + MEMORY → DRIVE
+              PUSH STATE → GITHUB
             </button>
             <button onClick={() => sync("pull")} disabled={!!syncing} className="flex items-center gap-2.5 rounded-xl border border-[#2a3044] px-5 py-3.5 text-[13px] font-bold text-[#c4cadb] transition-colors hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
               {syncing === "pull" ? <Loader2 size={15} className="animate-spin" /> : <CloudDownload size={15} />}
-              PULL FROM DRIVE (COLLAB ONBOARD)
+              PULL STATE FROM GITHUB
             </button>
             {savedMsg && <span className="mono text-[11px] font-bold tracking-[0.16em] text-emerald-400">{savedMsg}</span>}
           </div>

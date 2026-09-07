@@ -1,17 +1,55 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, CalendarClock, Captions, FileText, Hash, Send, Type } from "lucide-react";
+import { ArrowLeft, CalendarClock, Captions, FileText, Hash, Loader2, Send, Type, Upload, Video } from "lucide-react";
 import { LiveBadge, StatusChip, StepIcon, fmtClock, fmtSlot, usePoll } from "@/components/ui";
 
 export default function RunDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data } = usePoll<{ run: any; clips: any[]; error?: string }>(`/api/runs/${id}`, 2000);
+  const { data, refresh } = usePoll<{ run: any; clips: any[]; error?: string }>(`/api/runs/${id}`, 2000);
   const run = data?.run;
   const clips = data?.clips ?? [];
   const steps: any[] = run?.steps ?? [];
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<string>("");
+
+  const attachVideo = async (clipId: number, file: File) => {
+    setUploading(clipId);
+    setUploadMsg("");
+    try {
+      const s = await fetch(`/api/clips/${clipId}/upload-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileSize: file.size }),
+      });
+      const sd = await s.json();
+      if (!sd.ok) throw new Error(sd.error || "Could not open YouTube upload session");
+
+      const put = await fetch(sd.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "video/mp4" },
+        body: file,
+      });
+      const vd = await put.json();
+      if (!vd?.id) throw new Error(vd?.error?.message || "YouTube rejected the upload");
+
+      const fin = await fetch(`/api/clips/${clipId}/uploaded`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: vd.id, publishAt: sd.publishAt }),
+      });
+      const fd = await fin.json();
+      if (!fd.ok) throw new Error(fd.error || "Could not record the upload");
+      setUploadMsg(`Clip scheduled on YouTube — ${fd.url}`);
+      refresh();
+    } catch (e: any) {
+      setUploadMsg(e.message || "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  };
 
   return (
     <main className="min-h-screen">
@@ -72,6 +110,12 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
             {run.error && (
               <div className="mb-8 rounded-xl border border-[#ff4d4d]/50 bg-[#ff4d4d]/10 px-5 py-4">
                 <p className="mono text-[12px] text-[#ff9d9d]">{run.error}</p>
+              </div>
+            )}
+
+            {uploadMsg && (
+              <div className="mb-8 rounded-xl border border-[#d4ff3f]/40 bg-[#d4ff3f]/5 px-5 py-4">
+                <p className="mono break-words text-[12px] text-[#d4ff3f]">{uploadMsg}</p>
               </div>
             )}
 
@@ -137,6 +181,33 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
                         </span>
                         <StatusChip status={c.publishAt ? "scheduled" : c.status} />
                       </div>
+
+                      {/* Real YouTube scheduling: attach the rendered MP4 for this clip */}
+                      {c.youtubeVideoId && !c.youtubeVideoId.startsWith("dry_") ? (
+                        <a
+                          href={`https://youtube.com/watch?v=${c.youtubeVideoId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mono mt-3 flex items-center justify-center gap-2 rounded-lg border border-[#ff3333]/40 bg-[#ff3333]/10 px-3 py-2.5 text-[11px] font-bold tracking-[0.12em] text-[#ff9d9d] hover:bg-[#ff3333]/20"
+                        >
+                          <Video size={13} /> SCHEDULED ON YOUTUBE — WATCH
+                        </a>
+                      ) : (
+                        <label className="mono mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#39405a] bg-[#10131c] px-3 py-2.5 text-[11px] font-bold tracking-[0.12em] text-[#c4cadb] transition-colors hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
+                          {uploading === c.id ? <><Loader2 size={13} className="animate-spin" /> UPLOADING TO YOUTUBE…</> : <><Upload size={13} /> ATTACH MP4 → SCHEDULE ON YOUTUBE</>}
+                          <input
+                            type="file"
+                            accept="video/mp4,video/quicktime"
+                            className="hidden"
+                            disabled={uploading === c.id}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) attachVideo(c.id, f);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      )}
                       {c.assPath && (
                         <div className="mt-2 flex items-center justify-between">
                           <a href={`/api${c.assPath}`} target="_blank" className="mono flex items-center gap-1 text-[10px] text-[#576080] hover:text-[#d4ff3f]">

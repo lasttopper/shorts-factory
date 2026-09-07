@@ -83,6 +83,53 @@ export type UploadArgs = {
   publishAtIso: string;
 };
 
+export type ResumableArgs = {
+  title: string;
+  description: string;
+  tags: string[];
+  publishAtIso: string;
+  fileSize: number;
+};
+
+/**
+ * Opens a YouTube resumable-upload session and returns the upload URL.
+ * The browser (or a worker) then PUTs the MP4 bytes straight to that URL,
+ * which keeps large video files away from the app server entirely.
+ */
+export async function initResumableUpload(args: ResumableArgs, creds: YtCreds = {}): Promise<string> {
+  const token = await getAccessToken(creds);
+  const metadata = {
+    snippet: {
+      title: args.title,
+      description: args.description,
+      tags: args.tags,
+      categoryId: "22",
+    },
+    status: {
+      privacyStatus: "private",
+      publishAt: args.publishAtIso,
+      selfDeclaredMadeForKids: false,
+    },
+  };
+  const res = await fetch(
+    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Length": String(args.fileSize),
+        "X-Upload-Content-Type": "video/mp4",
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+  if (!res.ok) throw new Error(`YouTube upload session failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  const uploadUrl = res.headers.get("location") || res.headers.get("Location");
+  if (!uploadUrl) throw new Error("YouTube did not return an upload session URL");
+  return uploadUrl;
+}
+
 export async function uploadScheduledShort(args: UploadArgs, creds: YtCreds = {}): Promise<string> {
   const fs = await import("fs");
   const token = await getAccessToken(creds);

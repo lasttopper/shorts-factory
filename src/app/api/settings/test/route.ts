@@ -4,6 +4,7 @@ import { ctxForUser } from "@/lib/context";
 import { getEnv } from "@/lib/env";
 import { fetchChannelVideos, getAccessToken } from "@/lib/youtube";
 import { testTelegram } from "@/lib/telegram";
+import { testGithub } from "@/lib/github-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,15 +35,13 @@ export async function POST(req: Request) {
         const r = await testTelegram({ botToken: ctx.telegramBotToken, chatId: ctx.telegramChatId });
         return NextResponse.json(r);
       }
-      case "gdrive": {
-        if (!getEnv("GOOGLE_DRIVE_TOKEN") || !getEnv("GDRIVE_FOLDER_ID"))
-          return NextResponse.json({ ok: false, detail: "Drive folder ID or OAuth token not set" });
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${getEnv("GDRIVE_FOLDER_ID")}?fields=id,name`, {
-          headers: { Authorization: `Bearer ${getEnv("GOOGLE_DRIVE_TOKEN")}` },
-        });
-        if (!res.ok) return NextResponse.json({ ok: false, detail: `Drive rejected (${res.status}) — token may be expired` });
-        const d = await res.json();
-        return NextResponse.json({ ok: true, detail: `Connected to shared folder "${d.name}"` });
+      case "github": {
+        const r = await testGithub();
+        return NextResponse.json(r);
+      }
+      case "cron": {
+        if (!getEnv("CRON_SECRET")) return NextResponse.json({ ok: false, detail: "CRON_SECRET not set — add it to enable the daily auto-run" });
+        return NextResponse.json({ ok: true, detail: "Cron endpoint armed. Trigger daily: POST /api/cron/run with header 'Authorization: Bearer <CRON_SECRET>'" });
       }
       default:
         return NextResponse.json({ ok: false, detail: "unknown integration" }, { status: 400 });

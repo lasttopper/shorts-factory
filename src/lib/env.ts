@@ -28,8 +28,9 @@ export const ENV_KEYS: EnvKeyDef[] = [
   { key: "OPENAI_MODEL", label: "OpenAI model", group: "AI", placeholder: "gpt-4o-mini" },
   { key: "TELEGRAM_BOT_TOKEN", label: "Telegram bot token", group: "Telegram", secret: true, help: "From @BotFather" },
   { key: "TELEGRAM_CHAT_ID", label: "Telegram chat ID", group: "Telegram", secret: true, help: "Where the daily report is delivered" },
-  { key: "GDRIVE_FOLDER_ID", label: "Drive folder ID", group: "Google Drive", secret: true, help: "Shared collab folder that stores .env + memory.md" },
-  { key: "GOOGLE_DRIVE_TOKEN", label: "Drive OAuth access token", group: "Google Drive", secret: true, help: "Used to push/pull .env and memory.md for collaborators" },
+  { key: "GITHUB_TOKEN", label: "GitHub state token", group: "GitHub", secret: true, help: "Fine-grained PAT with Contents read/write on your repo" },
+  { key: "GITHUB_STATE_REPO", label: "State repo (owner/name)", group: "GitHub", placeholder: "lasttopper/shorts-factory" },
+  { key: "CRON_SECRET", label: "Cron secret", group: "Automation", secret: true, help: "Shared secret required by /api/cron/run for the daily auto-run" },
 ];
 
 export function readEnvFile(): Record<string, string> {

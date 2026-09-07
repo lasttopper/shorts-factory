@@ -9,6 +9,7 @@ import { sendRunReport } from "./telegram";
 import { envInt } from "./env";
 import { fmtTime, readMemory, recordRunInMemory } from "./memory";
 import { ctxForUser, ctxStatuses, runModeFor, type ExecCtx } from "./context";
+import { pushUserState } from "./github-state";
 
 const STEP_DEFS: { key: string; label: string }[] = [
   { key: "scan", label: "Scan source channel" },
@@ -246,7 +247,7 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       const mode = uploadLive ? "live" : "simulated";
       return {
         detail: uploadLive
-          ? `${scheduled} uploads queued on YOUR channel (OAuth publishAt scheduling)`
+          ? `${scheduled} slots armed on your channel — open the batch board and attach each rendered MP4 to complete the scheduled uploads`
           : `${scheduled} slots locked: ${out[0].toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} → every ${ctx.intervalMin} min (dry-run ids)`,
         mode: mode as "live" | "simulated",
         result: out,
@@ -281,7 +282,7 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
       };
     });
 
-    // ---------- 10. MEMORY ----------
+    // ---------- 10. MEMORY + GITHUB STATE ----------
     await runStep(runId, steps, "memory", async () => {
       const fresh = await db.select().from(clips).where(eq(clips.runId, runId));
       await recordRunInMemory(
@@ -308,7 +309,16 @@ export async function executeRun(runId: number, ctx: ExecCtx): Promise<void> {
         .update(sourceVideos)
         .set({ status: "used", usedInRunId: runId })
         .where(and(eq(sourceVideos.userId, ctx.userId), eq(sourceVideos.videoId, source.videoId)));
-      return { detail: `your memory updated in Postgres — \`${source.videoId}\` locked, never reused`, mode: "live", result: null };
+
+      // Commit memory.md + the batch report to the GitHub state repo (best-effort).
+      let stateDetail = `memory updated — \`${source.videoId}\` locked, never reused`;
+      const gh = await pushUserState(ctx.userId, runId);
+      if (gh) {
+        stateDetail += gh.error
+          ? ` · GitHub state failed: ${gh.error.slice(0, 80)}`
+          : ` · committed to GitHub (${gh.files.map((f) => f.name).join(", ")})`;
+      }
+      return { detail: stateDetail, mode: "live", result: null };
     });
 
     await db

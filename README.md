@@ -45,6 +45,33 @@ All state lives in PostgreSQL — the app is fully serverless-compatible.
 5. In Google Cloud, enable **YouTube Data API v3**, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `${APP_URL}/api/oauth/youtube/callback` as an exact Authorized redirect URI.
 6. Each teammate: registers → clicks **Connect with YouTube** → chooses their Google/YouTube account → approves access → returns with their channel connected automatically. They then set their **source channel handle** and **Telegram chat ID**, and hit **RUN TODAY'S BATCH**. Users never paste a client secret or refresh token.
 
+## Real YouTube scheduling (per clip)
+
+After a run creates your 10 slots, open the batch board and click **ATTACH MP4 → SCHEDULE ON YOUTUBE** on any clip. The app opens a resumable upload session with your channel and your browser uploads the MP4 **directly to YouTube** (large files never pass through the server). The video is created as **private with a `publishAt` timestamp**, so it goes public automatically at its scheduled slot. Once uploaded, the clip card links straight to the YouTube video.
+
+Generate the MP4s with each clip's stored `yt-dlp + ffmpeg` command (any machine with ffmpeg), or your own editor.
+
+## State on GitHub (no Google Drive)
+
+Set `GITHUB_TOKEN` (fine-grained PAT with **Contents: read/write** on your repo) and optionally `GITHUB_STATE_REPO` (defaults to `lasttopper/shorts-factory`). Every run then commits:
+
+- `state/memory-u<id>.md` — that user's locked-video history
+- `state/runs/run-<id>.md` — the full batch report
+
+Anyone can read or restore state from the repo (**Pull state from GitHub** in the app). Secrets are never committed to GitHub.
+
+## Daily auto-run via cron
+
+1. Set `CRON_SECRET` in your host's environment variables.
+2. Each user enables **AUTO-RUN MY PIPELINE DAILY** in Connections & Keys.
+3. Trigger the endpoint daily — `vercel.json` already schedules it at 07:00 UTC:
+
+```
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/cron/run
+```
+
+Runs everyone who opted in (max one batch per user per 20 hours), reports to each user's Telegram, and commits state to GitHub. cron-job.org works too if you want a different time.
+
 ## Enable “Connect with YouTube” (administrator, one time)
 
 1. Open [Google Cloud Console](https://console.cloud.google.com), create/select a project, then enable **YouTube Data API v3**.

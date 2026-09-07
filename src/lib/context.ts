@@ -3,6 +3,7 @@ import { userSettings, type UserConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getEnv } from "./env";
 import { unprotectSecret } from "./secret-crypto";
+import { githubConfigured, githubRepo } from "./github-state";
 
 export type ExecCtx = {
   userId: number;
@@ -78,13 +79,15 @@ export function ctxStatuses(ctx: ExecCtx): IntegrationStatus[] {
   const ytOAuth = !!(ctx.ytClientId && ctx.ytClientSecret && ctx.ytRefreshToken);
   const openai = !!ctx.openaiKey;
   const tg = !!(ctx.telegramBotToken && ctx.telegramChatId);
-  const drive = !!(getEnv("GDRIVE_FOLDER_ID") && getEnv("GOOGLE_DRIVE_TOKEN"));
+  const github = githubConfigured();
+  const cron = !!getEnv("CRON_SECRET");
   return [
     { id: "youtube_scan", label: "YouTube scan", live: ytKey, detail: ytKey ? `Live scanning of ${ctx.sourceHandle}` : "Simulation catalog (add API key)" },
     { id: "youtube_upload", label: "Your channel", live: ytOAuth && ctx.uploadEnabled, detail: ytOAuth && ctx.uploadEnabled ? `${ctx.ytChannelTitle || "YouTube connected"} — uploads authorized` : "Not connected — click Connect with YouTube" },
     { id: "openai", label: "AI copywriter", live: openai, detail: openai ? `AI titles/captions (${ctx.openaiModel})` : "Template engine (add OpenAI key)" },
     { id: "telegram", label: "Telegram report", live: tg, detail: tg ? "Report + attachments delivered to your chat" : "Enter your chat ID in My Connections" },
-    { id: "gdrive", label: "Drive collab sync", live: drive, detail: drive ? ".env + memory.md synced to team folder" : "Local only (shared vault not configured)" },
+    { id: "github", label: "GitHub state", live: github, detail: github ? `memory.md + reports committed to ${githubRepo()}` : "Add GITHUB_TOKEN to store state in your repo" },
+    { id: "cron", label: "Daily auto-run", live: cron, detail: cron ? "Cron endpoint armed — /api/cron/run" : "Add CRON_SECRET to enable scheduled runs" },
   ];
 }
 

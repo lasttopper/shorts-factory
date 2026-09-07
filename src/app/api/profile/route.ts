@@ -62,6 +62,7 @@ export async function POST(req: Request) {
   }
 
   if (typeof config.uploadEnabled === "boolean") next.uploadEnabled = config.uploadEnabled;
+  if (typeof config.autoRunEnabled === "boolean") next.autoRunEnabled = config.autoRunEnabled;
   const numKeys: (keyof UserConfig)[] = ["shortsPerRun", "startHour", "intervalMin"];
   for (const k of numKeys) {
     const n = parseInt(config[k], 10);

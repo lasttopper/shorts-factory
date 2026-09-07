@@ -39,6 +39,9 @@ export type UserConfig = {
   shortsPerRun?: number;
   startHour?: number;
   intervalMin?: number;
+  // daily auto-run (cron)
+  autoRunEnabled?: boolean;
+  lastAutoRunAt?: string;
 };
 
 export const users = pgTable("users", {
