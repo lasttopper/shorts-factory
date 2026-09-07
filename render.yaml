@@ -5,27 +5,24 @@ services:
     name: shorts-factory
     runtime: node
     plan: free
-    # Build: install deps and compile Next.js.
     buildCommand: npm install && npm run build
-    # Start: make sure tables exist, then serve (next start reads Render's PORT).
     startCommand: npx drizzle-kit push --force && npm run start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 20
+      # If using Neon, paste your Neon pooled URL here in the Render dashboard.
+      # If left as-is, it connects to the built-in free Render database below.
       - key: DATABASE_URL
         fromDatabase:
           name: shorts-factory-db
           property: connectionString
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
       - key: AUTH_SECRET
         generateValue: true
-      # Optional shared keys — fill these later in the Render dashboard
-      # (Environment tab). Setting them here persists across restarts,
-      # unlike values saved via the in-app UI on the free plan.
       - key: YOUTUBE_API_KEY
         sync: false
-      # Shared Google Web OAuth app. APP_URL must be your permanent public URL,
-      # e.g. https://shorts-factory-xxxx.onrender.com (no trailing slash).
       - key: APP_URL
         sync: false
       - key: YT_CLIENT_ID
@@ -36,9 +33,11 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: GDRIVE_FOLDER_ID
+      - key: GITHUB_TOKEN
         sync: false
-      - key: GOOGLE_DRIVE_TOKEN
+      - key: GITHUB_STATE_REPO
+        value: lasttopper/shorts-factory
+      - key: CRON_SECRET
         sync: false
 
 databases:
