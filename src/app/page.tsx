@@ -12,7 +12,7 @@ import { usePoll } from "@/components/ui";
 import { ArrowRight, Send, Video } from "lucide-react";
 
 export default function Dashboard() {
-  const { data: status, refresh: refreshStatus } = usePoll<any>("/api/status", 6000);
+  const { data: status, error: statusError, refresh: refreshStatus } = usePoll<any>("/api/status", 6000);
   const user = status?.user;
   const authed = !!user;
 
@@ -69,6 +69,26 @@ export default function Dashboard() {
   };
 
   if (status === null) {
+    if (statusError) {
+      return (
+        <main className="flex min-h-screen flex-col items-center justify-center gap-5 px-5">
+          <p className="mono text-[12px] tracking-[0.3em] text-[#ff8f8f]">STATUS SERVICE UNAVAILABLE</p>
+          <div className="card max-w-lg px-6 py-5 text-center">
+            <p className="text-[14px] font-semibold text-[#e8eaf0]">The dashboard can&apos;t reach the application status service.</p>
+            <p className="mono mt-2 break-words text-[11px] leading-relaxed text-[#8b93a7]">
+              {statusError} — if you just deployed, open <a className="text-[#d4ff3f] underline underline-offset-2" href="/api/health" target="_blank">/api/health</a> for the database diagnosis
+              (usually DATABASE_URL or AUTH_SECRET is missing or mistyped in the host&apos;s environment variables).
+            </p>
+            <button
+              onClick={() => { refreshStatus(); }}
+              className="glow-volt mt-4 rounded-xl bg-[#d4ff3f] px-6 py-3 text-[13px] font-bold text-black"
+            >
+              RETRY NOW
+            </button>
+          </div>
+        </main>
+      );
+    }
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="mono animate-pulse text-[12px] tracking-[0.3em] text-[#576080]">BOOTING FACTORY…</p>

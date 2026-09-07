@@ -21,6 +21,11 @@ export const pool =
   new Pool({
     connectionString: databaseUrl,
     ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+    // Serverless (Vercel) already isolates invocations; keep pools small.
+    max: process.env.VERCEL ? 2 : 10,
+    idleTimeoutMillis: 20000,
+    // Neon can take several seconds to wake a suspended compute.
+    connectionTimeoutMillis: 20000,
   });
 
 if (process.env.NODE_ENV !== "production") {
