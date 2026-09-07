@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { executeRun } from "@/lib/pipeline";
 import { getSessionUser } from "@/lib/auth";
 import { ctxForUser } from "@/lib/context";
-import { db } from "@/db";
+import { db, pool } from "@/db";
 import { runs } from "@/db/schema";
+import { ensureDatabaseSchema } from "@/db/bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ async function getAfter(): Promise<((fn: () => Promise<void>) => void) | null> {
 
 export async function POST() {
   try {
+    await ensureDatabaseSchema(pool);
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Please log in first — every user gets their own pipeline." }, { status: 401 });

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, pool } from "@/db";
 import { userSettings } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { getEnv } from "@/lib/env";
 import { startPipeline } from "@/lib/pipeline";
+import { ensureDatabaseSchema } from "@/db/bootstrap";
 
 function authorized(req: Request): boolean {
   const secret = getEnv("CRON_SECRET");
@@ -20,6 +21,7 @@ function authorized(req: Request): boolean {
  *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/run
  */
 async function handle(req: Request) {
+  await ensureDatabaseSchema(pool).catch(() => {});
   if (!getEnv("CRON_SECRET")) {
     return NextResponse.json({ ok: false, error: "CRON_SECRET is not configured on the host" }, { status: 401 });
   }
