@@ -2,6 +2,12 @@
 
 Every teammate gets a private pipeline: pick an unused video from any source channel (e.g. @NotYourType), cut the 10 best moments into Shorts with bottom captions, auto-write titles/descriptions/hashtags, design thumbnails, schedule 10 uploads per day on **their own** YouTube channel, and receive the full batch report (with attachments) in **their own** Telegram chat. A per-user memory in PostgreSQL guarantees no source video is ever clipped twice.
 
+## Run on Google Colab (free demo, zero setup)
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lasttopper/shorts-factory/blob/main/colab/Shorts_Factory_on_Colab.ipynb)
+
+Open the notebook → **Runtime → Run all** (~8 min) → paste your Neon database URLs when prompted → get a public `trycloudflare.com` URL. Great for testing the full multi-user flow locally-free before deploying. Sessions last ~12 h; use Vercel for production.
+
 ## Deploy free on Vercel + Neon (no card, permanent)
 
 All state lives in PostgreSQL — the app is fully serverless-compatible.
