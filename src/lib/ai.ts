@@ -152,3 +152,52 @@ function spreadLines(lines: string[], clipLenSec: number): CaptionLine[] {
     text,
   }));
 }
+
+/** Transcribes one rendered clip's source audio into real timed caption phrases. */
+export async function transcribeClipAudio(
+  audioPath: string,
+  apiKey: string
+): Promise<CaptionLine[] | null> {
+  if (!apiKey) return null;
+  try {
+    const fs = await import("fs");
+    const bytes = fs.readFileSync(audioPath);
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array(bytes)], { type: "audio/mpeg" }), "speech.mp3");
+    form.set("model", "whisper-1");
+    form.set("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "segment");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`transcription failed (${res.status})`);
+    const data = await res.json();
+    const segments: { start: number; end: number; text: string }[] = data?.segments || [];
+    const captions: CaptionLine[] = [];
+    for (const segment of segments) {
+      const words = String(segment.text || "").trim().split(/\s+/).filter(Boolean);
+      if (!words.length) continue;
+      const chunks: string[][] = [];
+      for (let i = 0; i < words.length; i += 6) chunks.push(words.slice(i, i + 6));
+      const duration = Math.max(0.8, segment.end - segment.start);
+      const per = duration / chunks.length;
+      chunks.forEach((chunk, i) => {
+        captions.push({
+          t0: +(segment.start + i * per).toFixed(2),
+          t1: +(segment.start + (i + 1) * per - 0.05).toFixed(2),
+          text: chunk.join(" "),
+        });
+      });
+    }
+    return captions.length ? captions : null;
+  } catch (err: any) {
+    console.error("Speech transcription fallback:", err?.message || err);
+    return null;
+  }
+}

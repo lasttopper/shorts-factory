@@ -130,6 +130,54 @@ export async function initResumableUpload(args: ResumableArgs, creds: YtCreds = 
   return uploadUrl;
 }
 
+export async function uploadScheduledShortResumable(args: UploadArgs, creds: YtCreds = {}): Promise<string> {
+  const fs = await import("fs");
+  const stat = fs.statSync(args.filePath);
+  const uploadUrl = await initResumableUpload(
+    {
+      title: args.title.slice(0, 100),
+      description: args.description.slice(0, 5000),
+      tags: args.tags.slice(0, 30),
+      publishAtIso: args.publishAtIso,
+      fileSize: stat.size,
+    },
+    creds
+  );
+  const stream = fs.createReadStream(args.filePath);
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "video/mp4",
+      "Content-Length": String(stat.size),
+    },
+    body: stream as any,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`YouTube video upload failed (${res.status}): ${text.slice(0, 500)}`);
+  const data = JSON.parse(text);
+  if (!data?.id) throw new Error("YouTube upload completed without a video id");
+  return data.id as string;
+}
+
+/** Assigns the generated JPEG as the video's custom thumbnail (best-effort). */
+export async function setVideoThumbnail(videoId: string, jpeg: Buffer, creds: YtCreds = {}): Promise<void> {
+  const token = await getAccessToken(creds);
+  const res = await fetch(
+    `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}&uploadType=media`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "image/jpeg",
+        "Content-Length": String(jpeg.length),
+      },
+      body: new Uint8Array(jpeg),
+    }
+  );
+  if (!res.ok) throw new Error(`YouTube thumbnail upload failed (${res.status})`);
+}
+
 export async function uploadScheduledShort(args: UploadArgs, creds: YtCreds = {}): Promise<string> {
   const fs = await import("fs");
   const token = await getAccessToken(creds);

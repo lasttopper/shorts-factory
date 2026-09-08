@@ -181,7 +181,7 @@ export default function SettingsPage() {
                   onChange={spv("sourceChannelHandle")}
                   placeholder={cfg.sourceChannelHandle || "@NotYourType"}
                   set={!!setFlags.sourceChannelHandle}
-                  help="Any channel — e.g. @NotYourType, @MrBeast. The pipeline picks its oldest-unused video each run."
+                  help="Use a channel you own, manage, or have explicit permission/license to repurpose."
                 />
                 <Field
                   label="AI key override (optional)"
@@ -192,6 +192,40 @@ export default function SettingsPage() {
                   set={!!setFlags.openaiApiKey}
                   help="Personal OpenAI key for your titles/captions"
                 />
+              </div>
+
+              <div className="mt-5 rounded-xl border border-[#d4ff3f]/25 bg-[#d4ff3f]/[0.035] px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[14px] font-bold">ZERO-TOUCH VIDEO FACTORY</p>
+                    <p className="mono mt-1 max-w-xl text-[10.5px] leading-relaxed text-[#6d7690]">
+                      fetch source → cut 10 vertical MP4s → burn captions → upload + schedule on YouTube → delete temporary files
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProfileValues((s) => ({ ...s, autoRenderEnabled: !((s.autoRenderEnabled as boolean) ?? cfg.autoRenderEnabled ?? true) }))}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${((profileValues.autoRenderEnabled as boolean) ?? cfg.autoRenderEnabled ?? true) ? "bg-[#d4ff3f]" : "bg-[#232839]"}`}
+                  >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-black transition-all ${((profileValues.autoRenderEnabled as boolean) ?? cfg.autoRenderEnabled ?? true) ? "left-[22px]" : "left-0.5"}`} />
+                  </button>
+                </div>
+
+                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-[#2a3044] bg-[#080a0f] px-3.5 py-3">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((profileValues.sourceRightsConfirmed as boolean) ?? cfg.sourceRightsConfirmed)}
+                    onChange={(e) => setProfileValues((s) => ({ ...s, sourceRightsConfirmed: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 accent-[#d4ff3f]"
+                  />
+                  <span className="text-[12px] leading-relaxed text-[#aab1c5]">
+                    I confirm that I own/manage this source channel or have explicit permission or a valid license to download,
+                    edit, and republish its videos. I understand unauthorized reuse may cause copyright claims or channel strikes.
+                  </span>
+                </label>
+                <p className="mono mt-3 text-[10px] leading-relaxed text-[#576080]">
+                  automatic rendering will not start until this confirmation is saved and your destination YouTube channel is connected
+                </p>
               </div>
             </div>
 

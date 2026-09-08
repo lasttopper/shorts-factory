@@ -4,6 +4,8 @@ on:
   schedule:
     # Runs every 10 minutes to prevent Render free instance from spinning down
     - cron: '*/10 * * * *'
+    # Dedicated daily pipeline trigger at 07:00 UTC
+    - cron: '0 7 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:

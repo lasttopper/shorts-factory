@@ -6,3 +6,4 @@ public/artifacts/
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+bin/yt-dlp

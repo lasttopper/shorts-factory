@@ -1,12 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Video, Sparkles, Send, ScanSearch, Timer, GitBranch } from "lucide-react";
+import { Video, Sparkles, Send, ScanSearch, Timer, GitBranch, WandSparkles } from "lucide-react";
 import { LiveBadge } from "./ui";
 
 const ICONS: Record<string, any> = {
   youtube_scan: ScanSearch,
   youtube_upload: Video,
+  renderer: WandSparkles,
   openai: Sparkles,
   telegram: Send,
   github: GitBranch,
@@ -15,7 +16,7 @@ const ICONS: Record<string, any> = {
 
 export default function IntegrationStrip({ integrations }: { integrations: any[] }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
       {(integrations ?? []).map((it, i) => {
         const Icon = ICONS[it.id] ?? ScanSearch;
         return (

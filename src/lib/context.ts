@@ -21,6 +21,8 @@ export type ExecCtx = {
   ytChannelHandle: string;
   ytChannelThumbnail: string;
   uploadEnabled: boolean;
+  autoRenderEnabled: boolean;
+  sourceRightsConfirmed: boolean;
   shortsPerRun: number;
   startHour: number;
   intervalMin: number;
@@ -61,6 +63,8 @@ export async function ctxForUser(userId: number): Promise<ExecCtx> {
     ytChannelHandle: cfg.ytChannelHandle || "",
     ytChannelThumbnail: cfg.ytChannelThumbnail || "",
     uploadEnabled: cfg.uploadEnabled ?? getEnv("YOUTUBE_UPLOAD_ENABLED") === "true",
+    autoRenderEnabled: cfg.autoRenderEnabled ?? getEnv("AUTO_RENDER_ENABLED", "true") === "true",
+    sourceRightsConfirmed: cfg.sourceRightsConfirmed === true,
     shortsPerRun: Math.min(15, Math.max(1, positive(cfg.shortsPerRun, parseInt(getEnv("SHORTS_PER_RUN", "10"), 10) || 10))),
     startHour: hour(cfg.startHour, parseInt(getEnv("SCHEDULE_START_HOUR", "9"), 10) || 9),
     intervalMin: positive(cfg.intervalMin, parseInt(getEnv("SLOT_INTERVAL_MIN", "90"), 10) || 90),
@@ -84,6 +88,14 @@ export function ctxStatuses(ctx: ExecCtx): IntegrationStatus[] {
   return [
     { id: "youtube_scan", label: "YouTube scan", live: ytKey, detail: ytKey ? `Live scanning of ${ctx.sourceHandle}` : "Simulation catalog (add API key)" },
     { id: "youtube_upload", label: "Your channel", live: ytOAuth && ctx.uploadEnabled, detail: ytOAuth && ctx.uploadEnabled ? `${ctx.ytChannelTitle || "YouTube connected"} — uploads authorized` : "Not connected — click Connect with YouTube" },
+    {
+      id: "renderer",
+      label: "Zero-touch worker",
+      live: ytOAuth && ctx.uploadEnabled && ctx.autoRenderEnabled && ctx.sourceRightsConfirmed,
+      detail: ctx.sourceRightsConfirmed
+        ? "Auto-download → render → upload → schedule is armed"
+        : "Confirm source ownership/permission in Connections",
+    },
     { id: "openai", label: "AI copywriter", live: openai, detail: openai ? `AI titles/captions (${ctx.openaiModel})` : "Template engine (add OpenAI key)" },
     { id: "telegram", label: "Telegram report", live: tg, detail: tg ? "Report + attachments delivered to your chat" : "Enter your chat ID in My Connections" },
     { id: "github", label: "GitHub state", live: github, detail: github ? `memory.md + reports committed to ${githubRepo()}` : "Add GITHUB_TOKEN to store state in your repo" },

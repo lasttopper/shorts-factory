@@ -62,6 +62,8 @@ export async function POST(req: Request) {
   }
 
   if (typeof config.uploadEnabled === "boolean") next.uploadEnabled = config.uploadEnabled;
+  if (typeof config.autoRenderEnabled === "boolean") next.autoRenderEnabled = config.autoRenderEnabled;
+  if (typeof config.sourceRightsConfirmed === "boolean") next.sourceRightsConfirmed = config.sourceRightsConfirmed;
   if (typeof config.autoRunEnabled === "boolean") next.autoRunEnabled = config.autoRunEnabled;
   const numKeys: (keyof UserConfig)[] = ["shortsPerRun", "startHour", "intervalMin"];
   for (const k of numKeys) {

@@ -39,6 +39,9 @@ export type UserConfig = {
   shortsPerRun?: number;
   startHour?: number;
   intervalMin?: number;
+  // zero-touch media automation (only allowed after rights confirmation)
+  autoRenderEnabled?: boolean;
+  sourceRightsConfirmed?: boolean;
   // daily auto-run (cron)
   autoRunEnabled?: boolean;
   lastAutoRunAt?: string;

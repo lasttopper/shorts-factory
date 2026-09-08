@@ -1,6 +1,6 @@
 # Shorts Factory — Multi-User Shorts Automation
 
-Every teammate gets a private pipeline: pick an unused video from any source channel (e.g. @NotYourType), cut the 10 best moments into Shorts with bottom captions, auto-write titles/descriptions/hashtags, design thumbnails, schedule 10 uploads per day on **their own** YouTube channel, and receive the full batch report (with attachments) in **their own** Telegram chat. A per-user memory in PostgreSQL guarantees no source video is ever clipped twice.
+Every teammate gets a private pipeline: select a source channel they own/manage or are licensed to repurpose, pick an unused video, cut 10 vertical Shorts with burned bottom captions, write titles/descriptions/hashtags, create thumbnails, upload and schedule all 10 on **their own** connected YouTube channel, then receive the batch report in **their own** Telegram chat. Per-user PostgreSQL memory prevents accidental repeats.
 
 ## Run on Google Colab (free demo, zero setup)
 
@@ -45,17 +45,26 @@ All state lives in PostgreSQL — the app is fully serverless-compatible.
    | `YT_CLIENT_ID` + `YT_CLIENT_SECRET` | One shared Google Web OAuth client; enables every user's **Connect with YouTube** button |
    | `TELEGRAM_BOT_TOKEN` | One shared factory bot (each user adds only their chat ID in-app) |
    | `OPENAI_API_KEY` | AI-written titles/captions instead of templates |
-   | `GDRIVE_FOLDER_ID` + `GOOGLE_DRIVE_TOKEN` | Collab vault (.env + memory.md sync) |
+   | `GITHUB_TOKEN` + `GITHUB_STATE_REPO` | Commit memory.md + reports to GitHub |
 
    > Set keys as **env vars here**, not only via the in-app settings UI — the free plan's disk is ephemeral, so UI-saved `.env` entries reset on redeploy, while env vars persist forever. **Dedupe is safe either way**: used-video locks live in the persistent database too.
 5. In Google Cloud, enable **YouTube Data API v3**, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `${APP_URL}/api/oauth/youtube/callback` as an exact Authorized redirect URI.
 6. Each teammate: registers → clicks **Connect with YouTube** → chooses their Google/YouTube account → approves access → returns with their channel connected automatically. They then set their **source channel handle** and **Telegram chat ID**, and hit **RUN TODAY'S BATCH**. Users never paste a client secret or refresh token.
 
-## Real YouTube scheduling (per clip)
+## Zero-touch rendering + YouTube scheduling
 
-After a run creates your 10 slots, open the batch board and click **ATTACH MP4 → SCHEDULE ON YOUTUBE** on any clip. The app opens a resumable upload session with your channel and your browser uploads the MP4 **directly to YouTube** (large files never pass through the server). The video is created as **private with a `publishAt` timestamp**, so it goes public automatically at its scheduled slot. Once uploaded, the clip card links straight to the YouTube video.
+On a persistent Node host such as Render, one run now performs the full media workflow without a file picker:
 
-Generate the MP4s with each clip's stored `yt-dlp + ffmpeg` command (any machine with ffmpeg), or your own editor.
+1. Scan the configured source channel and choose an unused long-form video.
+2. Download one 720p working copy with `yt-dlp` to temporary storage.
+3. Render 10 sequential 720×1280 MP4s with FFmpeg and burn the generated bottom captions.
+4. Upload every MP4 with YouTube's resumable upload API.
+5. Create each video as private with an ISO `publishAt`, so YouTube releases it at its assigned slot.
+6. Apply the generated thumbnail, update Telegram/GitHub state, then delete every temporary media file.
+
+Each user must enable **ZERO-TOUCH VIDEO FACTORY**, connect their destination YouTube channel, and confirm they own/manage or are licensed to repurpose the source content. Unauthorized copying can cause copyright claims or channel strikes. The worker intentionally refuses to download until that confirmation is saved.
+
+The default Render worker uses one FFmpeg thread, 720×1280 output, and processes clips sequentially to stay within a small instance's memory. A 10-clip batch can take several minutes.
 
 ## State on GitHub (no Google Drive)
 
@@ -107,10 +116,10 @@ The first registered account is the **admin** and can see shared system settings
 ### Free-plan notes
 - The service **sleeps after ~15 min idle** — first visit takes up to ~60 s to wake.
 - Free PostgreSQL **expires after 90 days** — export/recreate when Render emails you.
-- Files written at runtime (`memory.md`, thumbnails) regenerate per run; DB remains the source of truth.
+- Temporary source/MP4 files exist only during a worker run and are deleted afterward; metadata, memory, thumbnails and reports remain in PostgreSQL.
 
 ### Free daily automation
-No server cron needed — use [cron-job.org](https://cron-job.org) (free) or a GitHub Actions scheduled workflow to POST `/api/pipeline/run` with your login cookie daily.
+No server cron needed — use [cron-job.org](https://cron-job.org) or the included GitHub Actions workflow to call `/api/cron/run` with `Authorization: Bearer <CRON_SECRET>`. Every opted-in user then receives a full automatic render/upload batch.
 
 ## Local development
 ```bash
@@ -120,4 +129,4 @@ npm run dev
 ```
 
 ## Stack
-Next.js (App Router) · PostgreSQL + Drizzle ORM · sharp (thumbnail rendering) · Tailwind · Telegram Bot API · YouTube Data API v3 + OAuth · Google Drive API.
+Next.js (App Router) · PostgreSQL + Drizzle ORM · yt-dlp · FFmpeg · sharp · Tailwind · Telegram Bot API · YouTube Data API v3 + per-user OAuth · GitHub Contents API.

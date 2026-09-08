@@ -39,6 +39,21 @@ services:
         value: lasttopper/shorts-factory
       - key: CRON_SECRET
         sync: false
+      # Zero-touch media worker (users must still confirm source rights in-app)
+      - key: AUTO_RENDER_ENABLED
+        value: "true"
+      - key: AUTO_RENDER_MAX_SOURCE_SEC
+        value: "1800"
+      - key: SHORTS_RENDER_SIZE
+        value: "720:1280"
+      - key: FFMPEG_PRESET
+        value: veryfast
+      - key: FFMPEG_CRF
+        value: "24"
+      - key: FFMPEG_THREADS
+        value: "1"
+      - key: MAX_SOURCE_SIZE
+        value: 700M
 
 databases:
   - name: shorts-factory-db

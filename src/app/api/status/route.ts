@@ -61,6 +61,8 @@ export async function GET() {
         nextWindow: first.toISOString(),
         telegramConnected: !!(ctx.telegramBotToken && ctx.telegramChatId),
         youtubeConnected: !!(ctx.ytRefreshToken && ctx.uploadEnabled),
+        autoRenderEnabled: ctx.autoRenderEnabled,
+        sourceRightsConfirmed: ctx.sourceRightsConfirmed,
         youtubeOAuthReady: oauthAppReady(),
         youtubeChannel: ctx.ytChannelId
           ? { id: ctx.ytChannelId, title: ctx.ytChannelTitle, handle: ctx.ytChannelHandle, thumbnail: ctx.ytChannelThumbnail }

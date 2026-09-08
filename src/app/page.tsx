@@ -117,7 +117,10 @@ export default function Dashboard() {
     ? new Date(status.config.nextWindow).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
     : "…";
 
-  const needsOnboarding = !status.config?.telegramConnected || !status.config?.youtubeConnected;
+  const needsOnboarding =
+    !status.config?.telegramConnected ||
+    !status.config?.youtubeConnected ||
+    !status.config?.sourceRightsConfirmed;
 
   return (
     <main className="min-h-screen">
@@ -135,9 +138,11 @@ export default function Dashboard() {
         {needsOnboarding && (
           <section className="card glow-volt flex flex-wrap items-center justify-between gap-5 border-[#d4ff3f]/30 px-6 py-5">
             <div>
-              <p className="text-[15px] font-bold">Welcome, {user.name.split(" ")[0]} — connect your publishing accounts</p>
+              <p className="text-[15px] font-bold">Welcome, {user.name.split(" ")[0]} — finish zero-touch automation setup</p>
               <p className="mono mt-1 text-[11px] tracking-[0.06em] text-[#8b93a7]">
-                EACH USER CONNECTS THEIR OWN YOUTUBE CHANNEL + TELEGRAM DESTINATION
+                {!status.config?.youtubeConnected && "CONNECT YOUTUBE  •  "}
+                {!status.config?.telegramConnected && "CONNECT TELEGRAM  •  "}
+                {!status.config?.sourceRightsConfirmed && "CONFIRM SOURCE RIGHTS"}
               </p>
             </div>
             <div className="flex flex-wrap gap-2.5">
@@ -153,6 +158,11 @@ export default function Dashboard() {
               {!status.config?.telegramConnected && (
                 <Link href="/settings#telegram" className="flex items-center gap-2 rounded-xl border border-[#39405a] px-5 py-3 text-[13px] font-bold text-[#e8eaf0] hover:border-[#d4ff3f] hover:text-[#d4ff3f]">
                   <Send size={14} /> CONNECT TELEGRAM <ArrowRight size={14} />
+                </Link>
+              )}
+              {!status.config?.sourceRightsConfirmed && (
+                <Link href="/settings" className="flex items-center gap-2 rounded-xl border border-amber-400/40 px-5 py-3 text-[13px] font-bold text-amber-200 hover:bg-amber-400/10">
+                  CONFIRM RIGHTS <ArrowRight size={14} />
                 </Link>
               )}
             </div>
