@@ -1,0 +1,45 @@
+name: 24/7 Keep-Alive & Daily Auto-Run
+
+on:
+  schedule:
+    # Runs every 10 minutes to prevent Render free instance from spinning down
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping-keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Health Check
+        run: |
+          APP_URL="https://shorts-factory-mf0w.onrender.com"
+          echo "Pinging $APP_URL/api/health to keep server awake..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$APP_URL/api/health")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Warning: Healthcheck returned $HTTP_STATUS"
+          else
+            echo "Server is awake and healthy!"
+          fi
+
+  daily-batch:
+    runs-on: ubuntu-latest
+    # Run once per day around 07:00 UTC (runs between 07:00 and 07:15)
+    if: github.event.schedule == '0 7 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Trigger Daily Pipeline Run
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          APP_URL="https://shorts-factory-mf0w.onrender.com"
+          if [ -n "$CRON_SECRET" ]; then
+            echo "Triggering daily cron run with CRON_SECRET..."
+            curl -s -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/cron/run"
+          else
+            echo "CRON_SECRET secret not set in GitHub repository settings. Skipping daily batch trigger."
+          fi
